@@ -19,7 +19,6 @@ var _name: StringName
 var _entity_id: int = 0xFFFFFFFF
 var _entity_pool: Dictionary
 var _system_pool: Dictionary
-var _command_pool: Dictionary
 var _event_pool := GameEventCenter.new()
 
 var _type_component_dict: Dictionary
@@ -36,7 +35,6 @@ func name() -> StringName:
 	
 func clear() -> void:
 	remove_all_systems()
-	remove_all_commands()
 	remove_all_entities()
 	
 # user valid entity id (0x1 ~ 0xFFFFFFFF)
@@ -178,59 +176,6 @@ func get_system_keys() -> Array:
 	
 func has_system(name: StringName) -> bool:
 	return _system_pool.has(name)
-	
-class _command_shell extends RefCounted:
-	var _debug_print: bool
-	var _class: GDScript
-	var _c_name: StringName
-	var _w_name: StringName
-	var _world: WeakRef
-	func _init(name: StringName, script: GDScript, debug_print := false) -> void:
-		_c_name = name
-		_class = script
-		_debug_print = debug_print
-	func _register(w: ECSWorld, name: StringName) -> void:
-		_w_name = w.name()
-		_world = weakref(w)
-		w.add_callable(name, _on_event)
-	func _unregister(w: ECSWorld, name: StringName) -> void:
-		w.remove_callable(name, _on_event)
-		_world = null
-	func _on_event(e: GameEvent) -> void:
-		if _debug_print:
-			print("command <%s:%s> execute." % [_w_name, e.name])
-		var cmd: ECSCommand = _class.new()
-		cmd._set_world(_world.get_ref())
-		cmd._set_name(_c_name)
-		cmd.execute(e)
-	
-func add_command(name: StringName, cmd_script: GDScript) -> bool:
-	if cmd_script == null:
-		print("add command <%s:%s> fail: GDScript is null." % [_name, name])
-		return false
-	remove_command(name)
-	var shell := _command_shell.new(name, cmd_script, debug_print)
-	_command_pool[name] = shell
-	shell._register(self, name)
-	if debug_print:
-		print("command <%s:%s> add to ECSWorld." % [_name, name])
-	return true
-	
-func remove_command(name: StringName) -> bool:
-	if _command_pool.has(name):
-		var shell: _command_shell = _command_pool[name]
-		shell._unregister(self, name)
-		if debug_print:
-			print("command <%s:%s> remove from ECSWorld." % [_name, name])
-	return _command_pool.erase(name)
-	
-func remove_all_commands() -> bool:
-	for name: StringName in _command_pool.keys():
-		remove_command(name)
-	return true
-	
-func has_command(name: StringName) -> bool:
-	return _command_pool.has(name)
 	
 func add_callable(name: StringName, c: Callable) -> void:
 	_event_pool.add_callable(name, c)

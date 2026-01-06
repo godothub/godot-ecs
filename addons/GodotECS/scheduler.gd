@@ -14,10 +14,7 @@ func add_systems(systems: Array) -> ECSScheduler:
 	return self
 	
 func run() -> void:
-	WorkerThreadPool.add_group_task()
-	for sys: ECSAsyncSystem in _system_pool.values():
-		sys.list_components()
-		sys.view_components({})
+	pass
 	
 func _insert_graph_node(key: StringName, value: StringName) -> void:
 	assert(_system_pool.has(value), "Scheduler must have system key [%s]!" % value)

@@ -1,5 +1,7 @@
 extends Node2D
 
+@onready var _fps: Label = $fps
+
 var _world := ECSWorld.new("AsyncDemo")
 
 class LightSystem extends ECSParallel:
@@ -28,4 +30,5 @@ func _ready() -> void:
 	
 func _physics_process(delta: float) -> void:
 	_world.get_scheduler("demo").run(delta)
+	_fps.text = "%.2f" % (1.0 / delta)
 	

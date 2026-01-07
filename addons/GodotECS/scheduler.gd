@@ -9,7 +9,10 @@ var _world: ECSWorld
 
 # batch parallel systems
 var _batch_systems: Array[Array]
-var _systems_completed: _BatchSystemCompleted
+var _systems_completed: BatchSystemCompleted
+
+# worker queue
+var _queue: Array[ECSWorker]
 
 func add_systems(systems: Array) -> ECSScheduler:
 	for sys: ECSParallel in systems:
@@ -21,19 +24,19 @@ func add_systems(systems: Array) -> ECSScheduler:
 	return self
 	
 func build() -> void:
-	pass
+	_build_workers()
 	
 func run(_delta: float = 0.0) -> void:
-	# run the batch of systems
-	_run_systems()
-	# flush commands
+	_run_systems(_delta)
 	_flush_commands()
 	
 ## Finish the scheduler
 func finish() -> void:
 	_world = null
-	# stop threads
-	# ...
+	# stop all worker
+	for worker in _queue:
+		worker.stop()
+	_queue.clear()
 	
 func _insert_graph_node(key: StringName, value: StringName) -> void:
 	assert(_system_pool.has(value), "Scheduler must have system key [%s]!" % value)
@@ -52,15 +55,13 @@ func _set_system_after(name: StringName, after_systems: Array) -> void:
 	for key: StringName in after_systems:
 		_insert_graph_node(key, name)
 	
-func _init(world: ECSWorld) -> void:
+func _init(world: ECSWorld, threads_size: int) -> void:
 	_world = world
+	_threads_size = threads_size if threads_size >= 1 else OS.get_processor_count()
 	
-func _set_threads_size(value: int) -> void:
-	_threads_size = value
-	
-func _run_systems() -> void:
+func _run_systems(delta: float) -> void:
 	for systems: Array in _batch_systems:
-		_post_batch_systems(systems)
+		_post_batch_systems(systems, delta)
 		_wait_systems_completed()
 	
 func _flush_commands() -> void:
@@ -68,18 +69,31 @@ func _flush_commands() -> void:
 		for sys: ECSParallel in systems:
 			sys.commands().flush()
 	
-func _post_batch_systems(systems: Array) -> void:
-	_systems_completed = _BatchSystemCompleted.new(systems)
+func _post_batch_systems(systems: Array, delta: float) -> void:
+	_systems_completed = BatchSystemCompleted.new(systems)
+	var temp_systems := systems.duplicate()
+	var index: int = 0
+	while not temp_systems.is_empty():
+		var sys: ECSParallel = temp_systems.pop_back()
+		var worker := _queue[index % _queue.size()]
+		worker.push(SystemTask.new(sys.thread_function.bind(delta)))
+		index += 1
 	
 func _wait_systems_completed() -> void:
-	while true:
-		if _systems_completed.value:
-			break
+	while not _systems_completed.value:
 		# work stealing
-		# ...
+		var task: ECSWorker.Job = _queue.pick_random().steal()
+		if task:
+			task.execute()
+	
+func _build_workers() -> void:
+	assert(_queue.is_empty())
+	for i in _threads_size:
+		_queue.append(ECSWorker.new(_queue))
+		_queue.back().start()
 	
 # ==============================================================================
-class _BatchSystemCompleted extends RefCounted:
+class BatchSystemCompleted extends RefCounted:
 	var value: bool:
 		set(v):
 			pass
@@ -97,4 +111,10 @@ class _BatchSystemCompleted extends RefCounted:
 		_count += 1
 		_mutex.unlock()
 		
+class SystemTask extends ECSWorker.Job:
+	var _task: Callable
+	func _init(task: Callable) -> void:
+		_task = task
+	func execute() -> void:
+		_task.call()
 	

@@ -11,12 +11,19 @@ const Commands = preload("scheduler_commands.gd")
 var finished := func() -> void:
 	pass
 
+var delta: float:
+	set(v):
+		pass
+	get:
+		return _delta
+
 var _name: StringName
 var _views: Array
 var _before_list: Array
 var _after_list: Array
 var _world: ECSWorld
 var _commands: Commands = Commands.new()
+var _delta: float
 
 ## Return current system's name.
 func name() -> StringName:
@@ -46,18 +53,22 @@ func views_count() -> int:
 	return _views.size()
 	
 # final
-func thread_function() -> void:
+func thread_function(delta: float) -> void:
 	# view list components
 	_views = _world.multi_view(_list_components().keys())
 	# empty check
 	if _views.is_empty():
 		return
 		
+	# save delta
+	_delta = delta
+		
 	if _parallel():
 		# parallel processing
 		var task_id := WorkerThreadPool.add_group_task(func(index: int):
 			_view_components(_views[index]),
-		_views.size())
+			_views.size()
+		)
 		WorkerThreadPool.wait_for_group_task_completion(task_id)
 	else:
 		# non-parallel processing

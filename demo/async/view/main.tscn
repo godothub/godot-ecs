@@ -4,3 +4,8 @@
 
 [node name="Main" type="Node2D"]
 script = ExtResource("1_22n1o")
+
+[node name="fps" type="Label" parent="."]
+offset_right = 40.0
+offset_bottom = 23.0
+theme_override_font_sizes/font_size = 28

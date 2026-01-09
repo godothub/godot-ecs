@@ -8,6 +8,7 @@ class Job extends RefCounted:
 var _mutex := Mutex.new()
 var _jobs: Array[Job]
 var _thread: Thread
+var _waiter: Semaphore
 var _exit_thread: bool
 var _rng := RandomNumberGenerator.new()
 
@@ -23,6 +24,7 @@ func push(job: Job) -> void:
 	_mutex.lock()
 	_jobs.push_back(job)
 	_mutex.unlock()
+	_waiter.post()
 	
 # work stealing by other thread
 func steal() -> Job:
@@ -48,6 +50,7 @@ func start() -> void:
 		return
 	_exit_thread = false
 	_thread = Thread.new()
+	_waiter = Semaphore.new()
 	assert(_thread)
 	_thread.start(thread_function)
 	
@@ -55,6 +58,7 @@ func stop() -> void:
 	if not _thread:
 		return
 	_exit_thread = true
+	_waiter.post(10)
 	_thread.wait_to_finish()
 	_thread = null
 	
@@ -68,8 +72,8 @@ func _on_work_stealing() -> void:
 			job.execute()
 			return
 		
-	# sleep some times
-	OS.delay_msec(5)
+	# waiting
+	_waiter.wait()
 	
 # external thread queue
 var _queue: Array[ECSWorker]

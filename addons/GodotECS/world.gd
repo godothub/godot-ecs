@@ -275,6 +275,8 @@ func destroy_scheduler(name: StringName) -> bool:
 		return false
 	var scheduler := _scheduler_pool[name]
 	scheduler.finish()
+	scheduler._world = null
+	_scheduler_pool.erase(name)
 	return true
 	
 func get_scheduler(name: StringName) -> ECSScheduler:

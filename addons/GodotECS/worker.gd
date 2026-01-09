@@ -40,7 +40,6 @@ func thread_function() -> void:
 	while not _exit_thread:
 		var job := pop()
 		if job == null:
-			# begin work stealing...
 			_on_work_stealing()
 			continue
 		job.execute()
@@ -58,9 +57,10 @@ func stop() -> void:
 	if not _thread:
 		return
 	_exit_thread = true
-	_waiter.post(10)
+	_waiter.post()
 	_thread.wait_to_finish()
 	_thread = null
+	_waiter = null
 	
 func _on_work_stealing() -> void:
 	for _i in range(0, _queue.size()):

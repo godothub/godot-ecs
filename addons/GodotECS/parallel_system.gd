@@ -60,7 +60,7 @@ func views_count() -> int:
 	return _views.size()
 	
 # final
-func thread_function(delta: float, task_poster := Callable()) -> void:
+func thread_function(delta: float, task_poster := Callable(), steal_and_execute := Callable()) -> void:
 	# view list components
 	_views = _world.multi_view(_list_components().keys())
 	# empty check
@@ -97,7 +97,16 @@ func thread_function(delta: float, task_poster := Callable()) -> void:
 		# post jobs
 		task_poster.call(jobs)
 		# wait sub jobs completed
-		_sub_jobs_completed.wait()
+		while true:
+			# check completed
+			_sub_mutex.lock()
+			var active_count := _sub_jobs_count
+			_sub_mutex.unlock()
+			if active_count <= 0:
+				break
+			# work stealing
+			steal_and_execute.call()
+			
 		# merge all commands
 		for i in _views.size():
 			var sys := _sub_systems[i]
@@ -154,7 +163,4 @@ func _sub_system_finished() -> void:
 	_sub_mutex.lock()
 	_sub_jobs_count -= 1
 	_sub_mutex.unlock()
-	if _sub_jobs_count <= 0:
-		# all sub jobs completed
-		_sub_jobs_completed.post()
 	

@@ -82,7 +82,7 @@ func _post_batch_systems(systems: Array, delta: float) -> void:
 		sys.finished = _system_finished
 		# push task
 		var worker: ECSWorker = _queue[index % _queue.size()]
-		worker.push(ECSParallel.Task.new(sys.thread_function.bind(delta, worker.push_jobs)))
+		worker.push(ECSParallel.Task.new(sys.thread_function.bind(delta, worker.push_jobs, worker.steal_and_execute)))
 		index += 1
 		
 func _system_finished() -> void:
@@ -100,10 +100,7 @@ func _wait_systems_completed() -> void:
 			break
 		
 		# work stealing
-		var task: ECSWorker.Job = _queue.pick_random().steal()
-		if task:
-			task.execute()
-		else:
+		if not _queue.pick_random().steal_and_execute():
 			# delay 100 us
 			OS.delay_usec(100)
 	

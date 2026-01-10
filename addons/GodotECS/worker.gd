@@ -29,12 +29,10 @@ func push(job: Job) -> void:
 	
 # add jobs
 func push_jobs(jobs: Array[Job]) -> void:
-	while not jobs.is_empty():
-		var worker := _draw_worker()
-		# Avoid deadlock
-		if worker == self:
-			continue
-		worker.push(jobs.pop_back())
+	_mutex.lock()
+	_jobs.append_array(jobs)
+	_mutex.unlock()
+	_waiter.post()
 	
 # work stealing by other thread
 func steal() -> Job:
@@ -45,6 +43,12 @@ func steal() -> Job:
 		_jobs = _jobs.slice(1)
 	_mutex.unlock()
 	return result
+	
+func steal_and_execute() -> bool:
+	var job := steal()
+	if job:
+		job.execute()
+	return job != null
 	
 func thread_function() -> void:
 	while not _exit_thread:
@@ -78,20 +82,15 @@ func _draw_worker() -> ECSWorker:
 	
 func _on_work_stealing() -> void:
 	# steal job from last worker
-	if _last_worker:
-		var job := _last_worker.steal()
-		if job:
-			job.execute()
-			return
+	if _last_worker and _last_worker.steal_and_execute():
+		return
 		
 	# random steal job
 	for _i in range(0, _queue.size()):
 		var worker: ECSWorker = _draw_worker()
 		if worker == self:
 			continue
-		var job := worker.steal()
-		if job:
-			job.execute()
+		if worker.steal_and_execute():
 			_last_worker = worker
 			return
 		

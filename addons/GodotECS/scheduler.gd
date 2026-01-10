@@ -5,6 +5,8 @@ var _world: ECSWorld
 var _threads_size: int
 var _system_pool: Dictionary[StringName, ECSParallel]
 var _system_graph: Dictionary[StringName, Array]
+var _system_conflict: Dictionary[StringName, Dictionary]
+var _system_group: Dictionary[StringName, int]
 
 # batch parallel systems
 var _batch_systems: Array[Array]
@@ -20,6 +22,8 @@ func add_systems(systems: Array) -> ECSScheduler:
 	for sys: ECSParallel in systems:
 		sys.fetch_before_systems(_set_system_before)
 		sys.fetch_after_systems(_set_system_after)
+		sys.fetch_conflict(_set_system_conflict)
+		sys.fetch_group(_set_system_group)
 		sys._set_world(_world)
 	return self
 	
@@ -34,9 +38,15 @@ func clear() -> void:
 	for sys: ECSParallel in _system_pool.values():
 		sys.queue_free()
 	_system_pool.clear()
+	_batch_systems.clear()
+	
+	# other
 	_system_graph.clear()
+	_system_conflict.clear()
+	_system_group.clear()
 	
 func build() -> void:
+	_build_batch_systems()
 	_build_workers()
 	
 func run(_delta: float = 0.0) -> void:
@@ -59,6 +69,12 @@ func _set_system_before(name: StringName, before_systems: Array) -> void:
 func _set_system_after(name: StringName, after_systems: Array) -> void:
 	for key: StringName in after_systems:
 		_insert_graph_node(key, name)
+	
+func _set_system_conflict(name: StringName, table: Dictionary) -> void:
+	_system_conflict[name] = table
+	
+func _set_system_group(name: StringName, group: int) -> void:
+	_system_group[name] = group
 	
 func _init(world: ECSWorld, threads_size: int) -> void:
 	_world = world
@@ -104,10 +120,46 @@ func _wait_systems_completed() -> void:
 			# delay 100 us
 			OS.delay_usec(100)
 	
+func _build_batch_systems() -> void:
+	DependencyBuilder.new()\
+		.with_dag(_system_graph)\
+		.with_conflict(_system_conflict)\
+		.with_group(_system_group)\
+		.build(func(batch_system_keys: Array):
+		_batch_systems.append(batch_system_keys.map(func(key: StringName):
+			return _system_pool[key]
+		))
+	)
+	
 func _build_workers() -> void:
 	assert(_queue.is_empty())
 	for i in _threads_size:
 		_queue.append(ECSWorker.new(_queue))
 	for sys: ECSWorker in _queue:
 		sys.start()
+	
+# ==============================================================================
+# private
+class DependencyBuilder extends RefCounted:
+	var _graph: Dictionary[StringName, Array]
+	var _conflict: Dictionary[StringName, Dictionary]
+	var _group: Dictionary[StringName, int]
+	# set dependency graph
+	func with_dag(graph: Dictionary[StringName, Array]) -> DependencyBuilder:
+		_graph.merge(graph)
+		return self
+	# set read write conflict
+	func with_conflict(conf: Dictionary[StringName, Dictionary]) -> DependencyBuilder:
+		_conflict.merge(conf)
+		return self
+	# set system group, like enum InputSystem before enum RenderSystem
+	func with_group(group: Dictionary[StringName, int]) -> DependencyBuilder:
+		_group.merge(group)
+		return self
+	# catch every batch system names
+	func build(catch := Callable()) -> void:
+		# simulation...
+		for i in 1:
+			var system_keys: Array[StringName]
+			catch.call(system_keys)
 	

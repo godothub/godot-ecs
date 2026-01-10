@@ -27,6 +27,7 @@ var _name: StringName
 var _views: Array
 var _before_list: Array
 var _after_list: Array
+var _group: int
 var _world: ECSWorld
 var _commands: Commands
 var _delta: float
@@ -47,6 +48,10 @@ func after(systems: Array) -> ECSParallel:
 	_after_list = systems
 	return self
 	
+func in_set(value: int) -> ECSParallel:
+	_group = value
+	return self
+	
 ## Internal function
 func fetch_before_systems(querier: Callable) -> void:
 	querier.call(_name, _before_list)
@@ -54,6 +59,13 @@ func fetch_before_systems(querier: Callable) -> void:
 ## Internal function
 func fetch_after_systems(querier: Callable) -> void:
 	querier.call(_name, _after_list)
+	
+## Internal function
+func fetch_conflict(querier: Callable) -> void:
+	querier.call(_name, _list_components())
+	
+func fetch_group(querier: Callable) -> void:
+	querier.call(_name, _group)
 	
 ## Returns the length of the component query / list.
 func views_count() -> int:
@@ -74,9 +86,10 @@ func thread_function(delta: float, task_poster := Callable(), steal_and_execute 
 		# parallel processing
 		if _sub_systems.size() < _views.size():
 			# create sub parallel systems
+			var SelfType = _self_type()
+			assert(SelfType, "ECSParallel needs to implement the _self_type() method when parallel execution of subtasks is required!")
 			for i in _views.size() - _sub_systems.size():
-				var sys := _duplicate()
-				assert(sys, "ECSParallel needs to implement the _duplicate() method when parallel execution of subtasks is required!")
+				var sys: ECSParallel = SelfType.new()
 				_sub_systems.append(sys)
 		# create job list
 		var jobs: Array[ECSWorker.Job]
@@ -130,7 +143,7 @@ func _parallel() -> bool:
 	
 # override
 ## duplicate self: It is required when sub-tasks need to be executed in parallel
-func _duplicate() -> ECSParallel:
+func _self_type() -> Resource:
 	return null
 	
 # override
@@ -144,14 +157,17 @@ func _view_components(_view: Dictionary) -> void:
 	pass
 	
 # ==============================================================================
-# private
+# final
 func _init(name: StringName, parent: Node = null) -> void:
 	_name = name
 	_commands = Commands.new()
 	
+# ==============================================================================
+# private
 func _set_world(w: ECSWorld) -> void:
 	_world = w
 	
+# private
 func _empty_finished() -> void:
 	pass
 	

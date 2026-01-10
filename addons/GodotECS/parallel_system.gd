@@ -8,6 +8,13 @@ enum {
 
 const Commands = preload("scheduler_commands.gd")
 
+class Task extends ECSWorker.Job:
+	var _task: Callable
+	func _init(task: Callable) -> void:
+		_task = task
+	func execute() -> void:
+		_task.call()
+
 var finished := _empty_finished
 
 var delta: float:
@@ -21,8 +28,9 @@ var _views: Array
 var _before_list: Array
 var _after_list: Array
 var _world: ECSWorld
-var _commands: Commands = Commands.new()
+var _commands: Commands
 var _delta: float
+var _sub_systems: Array[ECSParallel]
 
 ## Return current system's name.
 func name() -> StringName:
@@ -51,8 +59,14 @@ func fetch_after_systems(querier: Callable) -> void:
 func views_count() -> int:
 	return _views.size()
 	
+func duplicate_parallel() -> ECSParallel:
+	var result := _duplicate()
+	if result.get_parent() == null:
+		add_child(result)
+	return result
+	
 # final
-func thread_function(delta: float) -> void:
+func thread_function(delta: float, task_poster := Callable()) -> void:
 	# view list components
 	_views = _world.multi_view(_list_components().keys())
 	# empty check
@@ -64,11 +78,37 @@ func thread_function(delta: float) -> void:
 		
 	if _parallel():
 		# parallel processing
-		var task_id := WorkerThreadPool.add_group_task(func(index: int):
-			_view_components(_views[index]),
-			_views.size()
-		)
-		WorkerThreadPool.wait_for_group_task_completion(task_id)
+		if _sub_systems.size() < _views.size():
+			# create sub parallel systems
+			for i in _views.size() - _sub_systems.size():
+				var sys := duplicate_parallel()
+				assert(sys, "ECSParallel needs to implement the _duplicate() method when parallel execution of subtasks is required!")
+				_sub_systems.append(sys)
+		# create job list
+		var jobs: Array[ECSWorker.Job]
+		jobs.resize(_views.size())
+		for i in _views.size():
+			var sys: ECSParallel = _sub_systems[i]
+			var view: Dictionary = _views[i]
+			sys._delta = delta
+			sys.finished = _sub_system_finished
+			jobs[i] = Task.new(
+				(func(sys: ECSParallel, view: Dictionary):
+					sys._view_components(view)
+					sys.finished.call())
+				.bind(sys, view)
+			)
+		# some init
+		_sub_jobs_count = jobs.size()
+		# post jobs
+		task_poster.call(jobs)
+		# wait sub jobs completed
+		_sub_jobs_completed.wait()
+		# merge all commands
+		for i in _views.size():
+			var sys := _sub_systems[i]
+			_commands.merge(sys.commands())
+			sys.commands().clear()
 	else:
 		# non-parallel processing
 		for view: Dictionary in _views:
@@ -86,6 +126,11 @@ func _parallel() -> bool:
 	return false
 	
 # override
+## duplicate self: It is required when sub-tasks need to be executed in parallel
+func _duplicate() -> ECSParallel:
+	return null
+	
+# override
 ## Returns the list of components that the current system is interested in, along with their read/write access permissions.
 func _list_components() -> Dictionary[StringName, int]:
 	return {}
@@ -99,6 +144,7 @@ func _view_components(_view: Dictionary) -> void:
 # private
 func _init(name: StringName, parent: Node = null) -> void:
 	_name = name
+	_commands = Commands.new()
 	set_name("parallel_%s" % name)
 	if parent:
 		parent.add_child(self)
@@ -108,4 +154,16 @@ func _set_world(w: ECSWorld) -> void:
 	
 func _empty_finished() -> void:
 	pass
+	
+var _sub_jobs_count: int = 0
+var _sub_mutex := Mutex.new()
+var _sub_jobs_completed := Semaphore.new()
+	
+func _sub_system_finished() -> void:
+	_sub_mutex.lock()
+	_sub_jobs_count -= 1
+	_sub_mutex.unlock()
+	if _sub_jobs_count <= 0:
+		# all sub jobs completed
+		_sub_jobs_completed.post()
 	

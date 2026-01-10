@@ -274,7 +274,7 @@ func destroy_scheduler(name: StringName) -> bool:
 	if not _scheduler_pool.has(name):
 		return false
 	var scheduler := _scheduler_pool[name]
-	scheduler.finish()
+	scheduler.clear()
 	scheduler._world = null
 	_scheduler_pool.erase(name)
 	return true

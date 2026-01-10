@@ -23,16 +23,25 @@ func add_systems(systems: Array) -> ECSScheduler:
 		sys._set_world(_world)
 	return self
 	
+## Clear the scheduler
+func clear() -> void:
+	# clear workers
+	for worker in _queue:
+		worker.stop()
+	_queue.clear()
+	
+	# clear system pool
+	for sys: ECSParallel in _system_pool.values():
+		sys.queue_free()
+	_system_pool.clear()
+	_system_graph.clear()
+	
 func build() -> void:
 	_build_workers()
 	
 func run(_delta: float = 0.0) -> void:
 	_run_systems(_delta)
 	_flush_commands()
-	
-## Finish the scheduler
-func finish() -> void:
-	_stop_workers()
 	
 func _insert_graph_node(key: StringName, value: StringName) -> void:
 	assert(_system_pool.has(value), "Scheduler must have system key [%s]!" % value)
@@ -73,7 +82,7 @@ func _post_batch_systems(systems: Array, delta: float) -> void:
 		sys.finished = _system_finished
 		# push task
 		var worker: ECSWorker = _queue[index % _queue.size()]
-		worker.push(SystemTask.new(sys.thread_function.bind(delta)))
+		worker.push(ECSParallel.Task.new(sys.thread_function.bind(delta, worker.push_jobs)))
 		index += 1
 		
 func _system_finished() -> void:
@@ -104,17 +113,4 @@ func _build_workers() -> void:
 		_queue.append(ECSWorker.new(_queue))
 	for sys: ECSWorker in _queue:
 		sys.start()
-	
-func _stop_workers() -> void:
-	for worker in _queue:
-		worker.stop()
-	_queue.clear()
-	
-# ==============================================================================
-class SystemTask extends ECSWorker.Job:
-	var _task: Callable
-	func _init(task: Callable) -> void:
-		_task = task
-	func execute() -> void:
-		_task.call()
 	

@@ -10,6 +10,7 @@ var _jobs: Array[Job]
 var _thread: Thread
 var _waiter: Semaphore
 var _exit_thread: bool
+var _last_worker: ECSWorker
 var _rng := RandomNumberGenerator.new()
 
 # take job by self
@@ -25,6 +26,15 @@ func push(job: Job) -> void:
 	_jobs.push_back(job)
 	_mutex.unlock()
 	_waiter.post()
+	
+# add jobs
+func push_jobs(jobs: Array[Job]) -> void:
+	while not jobs.is_empty():
+		var worker := _draw_worker()
+		# Avoid deadlock
+		if worker == self:
+			continue
+		worker.push(jobs.pop_back())
 	
 # work stealing by other thread
 func steal() -> Job:
@@ -61,16 +71,32 @@ func stop() -> void:
 	_thread.wait_to_finish()
 	_thread = null
 	_waiter = null
+	_last_worker = null
+	
+func _draw_worker() -> ECSWorker:
+	return _queue[_rng.randi_range(0, _queue.size()-1)]
 	
 func _on_work_stealing() -> void:
+	# steal job from last worker
+	if _last_worker:
+		var job := _last_worker.steal()
+		if job:
+			job.execute()
+			return
+		
+	# random steal job
 	for _i in range(0, _queue.size()):
-		var worker: ECSWorker = _queue[_rng.randi_range(0, _queue.size()-1)]
+		var worker: ECSWorker = _draw_worker()
 		if worker == self:
 			continue
 		var job := worker.steal()
 		if job:
 			job.execute()
+			_last_worker = worker
 			return
+		
+	# set last worker null
+	_last_worker = null
 		
 	# waiting
 	_waiter.wait()

@@ -8,28 +8,24 @@ class LightSystem extends ECSParallel:
 	# override
 	func _parallel() -> bool:
 		return false
-	func _self_type() -> Resource:
-		return LightSystem
 	func _list_components() -> Dictionary[StringName, int]:
 		return {
 			&"my_component": READ_ONLY,
 		}
-	func _view_components(_view: Dictionary) -> void:
+	func _view_components(_view: Dictionary, _commands: Commands) -> void:
 		pass
 	
 class HeavyWorkSystem extends ECSParallel:
 	# override
 	func _parallel() -> bool:
 		return true
-	func _self_type() -> Resource:
-		return HeavyWorkSystem
 	# override
 	func _list_components() -> Dictionary[StringName, int]:
 		return {
 			&"my_component": READ_WRITE,
 		}
 	# override
-	func _view_components(_view: Dictionary) -> void:
+	func _view_components(_view: Dictionary, _commands: Commands) -> void:
 		var c: MyComponent = _view.my_component
 		c.value1 += 100
 	

@@ -20,16 +20,14 @@ var _before_list: Array
 var _after_list: Array
 var _group: int
 var _world: ECSWorld
-var _commands: Commands
 var _delta: float
-var _sub_systems: Array[ECSParallel]
+
+var _root_commands: Commands
+var _sub_commands: Array[Commands]
 
 ## Return current system's name.
 func name() -> StringName:
 	return _name
-	
-func commands() -> Commands:
-	return _commands
 	
 func before(systems: Array) -> ECSParallel:
 	_before_list = systems
@@ -62,6 +60,11 @@ func fetch_group(querier: Callable) -> void:
 func views_count() -> int:
 	return _views.size()
 	
+func flush_commands() -> void:
+	for c: Commands in _sub_commands:
+		c.flush()
+	_root_commands.flush()
+	
 # final
 func thread_function(delta: float, task_poster := Callable(), steal_and_execute := Callable()) -> void:
 	# view list components
@@ -75,24 +78,20 @@ func thread_function(delta: float, task_poster := Callable(), steal_and_execute 
 	_delta = delta
 		
 	if _parallel():
-		if _sub_systems.size() < _views.size():
-			# create sub parallel systems
-			var SelfType = _self_type()
-			assert(SelfType, "ECSParallel needs to implement the _self_type() method when parallel execution of subtasks is required!")
-			for i in _views.size() - _sub_systems.size():
-				var sys: ECSParallel = SelfType.new("SubSystem")
-				_sub_systems.append(sys)
+		if _sub_commands.size() > _views.size():
+			_sub_commands.resize(_views.size())
+		else:
+			for i in _views.size() - _sub_commands.size():
+				_sub_commands.append(Commands.new())
 		var task_id := WorkerThreadPool.add_group_task(func(index: int):
-			var sys := _sub_systems[index]
-			sys._delta = delta
-			sys._view_components(_views[index]),
+			_view_components(_views[index], _sub_commands[index]),
 			_views.size(),
 		)
 		WorkerThreadPool.wait_for_group_task_completion(task_id)
 	else:
 		# non-parallel processing
 		for view: Dictionary in _views:
-			_view_components(view)
+			_view_components(view, _root_commands)
 		
 # ==============================================================================
 # override
@@ -101,25 +100,20 @@ func _parallel() -> bool:
 	return false
 	
 # override
-## duplicate self: It is required when sub-tasks need to be executed in parallel
-func _self_type() -> Resource:
-	return null
-	
-# override
 ## Returns the list of components that the current system is interested in, along with their read/write access permissions.
 func _list_components() -> Dictionary[StringName, int]:
 	return {}
 	
 # override
 ## A function that processes component data.
-func _view_components(_view: Dictionary) -> void:
+func _view_components(_view: Dictionary, _commands: Commands) -> void:
 	pass
 	
 # ==============================================================================
 # final
 func _init(name: StringName) -> void:
 	_name = name
-	_commands = Commands.new()
+	_root_commands = Commands.new()
 	
 # ==============================================================================
 # private

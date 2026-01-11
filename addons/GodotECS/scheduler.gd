@@ -85,7 +85,7 @@ func _run_systems(delta: float) -> void:
 func _flush_commands() -> void:
 	for systems: Array in _batch_systems:
 		for sys: ECSParallel in systems:
-			sys.commands().flush()
+			sys.flush_commands()
 	
 func _build_batch_systems() -> void:
 	DependencyBuilder.new()\

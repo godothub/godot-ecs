@@ -1,8 +1,7 @@
 extends Node2D
 
-@onready var _fps: Label = $fps
-
 var _world := ECSWorld.new("AsyncDemo")
+var _scheduler: ECSScheduler
 
 class LightSystem extends ECSParallel:
 	# override
@@ -14,7 +13,6 @@ class LightSystem extends ECSParallel:
 		}
 	func _view_components(_view: Dictionary, _commands: Commands) -> void:
 		pass
-	
 class HeavyWorkSystem extends ECSParallel:
 	# override
 	func _parallel() -> bool:
@@ -30,40 +28,15 @@ class HeavyWorkSystem extends ECSParallel:
 		c.value1 += 100
 	
 func _ready() -> void:
-	for i in 10000:
-		var e := _world.create_entity()
-		e.add_component("my_component", MyComponent.new())
-	_world.create_scheduler("demo").add_systems([
-		LightSystem.new(&"light_system"),
-		HeavyWorkSystem.new(&"heavy_system"),
-		LightSystem.new(&"light1"),
-		LightSystem.new(&"light2"),
-		LightSystem.new(&"light3"),
-		LightSystem.new(&"light4"),
-		LightSystem.new(&"light5"),
-		LightSystem.new(&"light6"),
-		LightSystem.new(&"light7"),
-		LightSystem.new(&"light8"),
-	]).build()
+	# 获取调度器分区
+	_scheduler = _world.get_scheduler("demo")
+	if _scheduler == null:
+		_scheduler = _world.create_scheduler("demo").add_systems([
+			LightSystem.new(&"light_system").before([&"heavy_system"]),
+			HeavyWorkSystem.new(&"heavy_system"),
+		]).build()
 	
 func _process(delta: float) -> void:
-	var first := Time.get_unix_time_from_system()
-	_fps.text = "%.2f" % (1.0 / delta)
+	# 运行特定分区调度器
+	_scheduler.run(delta)
 	
-	if _multi_thread:
-		_world.get_scheduler("demo").run(delta)
-		
-	else:
-		if _views.is_empty():
-			_views = _world.multi_view(["my_component"])
-			
-		for i in 10:
-			for view: Dictionary in _views:
-				var c: MyComponent = view.my_component
-				c.value1 += 100
-	
-	var second := Time.get_unix_time_from_system()
-	printt("%.4f" % (second-first), "%.2f" % delta)
-	
-const _multi_thread = true
-var _views: Array

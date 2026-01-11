@@ -36,13 +36,14 @@ func clear() -> void:
 	_system_conflict.clear()
 	_system_group.clear()
 	
-func build() -> void:
+func build() -> ECSScheduler:
 	assert(not _system_pool.is_empty())
 	_batch_systems.clear()
 	if _system_pool.size() == 1:
 		_batch_systems.append(_system_pool.values())
 	else:
 		_build_batch_systems()
+	return self
 	
 func run(_delta: float = 0.0) -> void:
 	_run_systems(_delta)

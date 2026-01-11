@@ -1,6 +1,9 @@
-[gd_scene load_steps=5 format=3 uid="uid://c3u7n5w6o0k02"]
+[gd_scene load_steps=6 format=3 uid="uid://c3u7n5w6o0k02"]
 
 [ext_resource type="Script" uid="uid://dt648rx8jag51" path="res://demo/async/view/main.gd" id="1_22n1o"]
+
+[sub_resource type="CircleShape2D" id="CircleShape2D_22n1o"]
+radius = 100.0
 
 [sub_resource type="Animation" id="Animation_22n1o"]
 resource_name = "move"
@@ -44,8 +47,17 @@ _data = {
 script = ExtResource("1_22n1o")
 
 [node name="ColorRect" type="ColorRect" parent="."]
-offset_right = 39.999756
-offset_bottom = 40.00006
+offset_right = 39.999695
+offset_bottom = 40.00009
+
+[node name="Area2D" type="Area2D" parent="ColorRect"]
+position = Vector2(936, 519)
+disable_mode = 2
+collision_mask = 0
+metadata/_edit_group_ = true
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="ColorRect/Area2D"]
+shape = SubResource("CircleShape2D_22n1o")
 
 [node name="AnimationPlayer" type="AnimationPlayer" parent="."]
 libraries = {
@@ -57,3 +69,14 @@ autoplay = "move"
 offset_right = 40.0
 offset_bottom = 23.0
 theme_override_font_sizes/font_size = 28
+
+[node name="Area2D" type="Area2D" parent="."]
+position = Vector2(936, 519)
+disable_mode = 2
+collision_layer = 0
+metadata/_edit_group_ = true
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="Area2D"]
+shape = SubResource("CircleShape2D_22n1o")
+
+[connection signal="area_entered" from="Area2D" to="." method="_on_area_2d_area_entered"]

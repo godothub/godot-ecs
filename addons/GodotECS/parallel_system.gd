@@ -90,7 +90,7 @@ func thread_function(delta: float, task_poster := Callable(), steal_and_execute 
 			var SelfType = _self_type()
 			assert(SelfType, "ECSParallel needs to implement the _self_type() method when parallel execution of subtasks is required!")
 			for i in _views.size() - _sub_systems.size():
-				var sys: ECSParallel = SelfType.new()
+				var sys: ECSParallel = SelfType.new("SubSystem")
 				_sub_systems.append(sys)
 		# create job list
 		var jobs: Array[ECSWorker.Job]
@@ -123,9 +123,11 @@ func thread_function(delta: float, task_poster := Callable(), steal_and_execute 
 			
 		# merge all commands
 		for i in _views.size():
-			var sys := _sub_systems[i]
-			_commands.merge(sys.commands())
-			sys.commands().clear()
+			var commands := _sub_systems[i].commands()
+			if commands.is_empty():
+				continue
+			_commands.merge(commands)
+			commands.clear()
 	else:
 		# non-parallel processing
 		for view: Dictionary in _views:

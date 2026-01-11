@@ -17,3 +17,6 @@ func flush() -> void:
 func clear() -> void:
 	_operations.clear()
 	
+func is_empty() -> bool:
+	return _operations.is_empty()
+	

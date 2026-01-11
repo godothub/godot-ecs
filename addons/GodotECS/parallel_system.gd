@@ -83,8 +83,8 @@ func thread_function(delta: float, task_poster := Callable(), steal_and_execute 
 		else:
 			for i in _views.size() - _sub_commands.size():
 				_sub_commands.append(Commands.new())
-		var task_id := WorkerThreadPool.add_group_task(func(index: int):
-			_view_components(_views[index], _sub_commands[index]),
+		var task_id := WorkerThreadPool.add_group_task(
+			_sub_view_components.bind(_views, _sub_commands),
 			_views.size(),
 		)
 		WorkerThreadPool.wait_for_group_task_completion(task_id)
@@ -119,4 +119,7 @@ func _init(name: StringName) -> void:
 # private
 func _set_world(w: ECSWorld) -> void:
 	_world = w
+	
+func _sub_view_components(index: int, _views: Array, _commands: Array) -> void:
+	_view_components(_views[index], _commands[index])
 	

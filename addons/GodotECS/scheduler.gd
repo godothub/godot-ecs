@@ -77,8 +77,7 @@ func _init(world: ECSWorld) -> void:
 func _run_systems(delta: float) -> void:
 	for systems: Array in _batch_systems:
 		var task_id := WorkerThreadPool.add_group_task(func(index: int):
-			var sys: ECSParallel = systems[index]
-			sys.thread_function(delta),
+			systems[index].thread_function(delta),
 			systems.size())
 		WorkerThreadPool.wait_for_group_task_completion(task_id)
 	

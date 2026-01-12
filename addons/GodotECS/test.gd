@@ -17,6 +17,8 @@ func _init() -> void:
 	_test_event()
 	_test_update()
 	
+	ECSSchedulerCommandsTest.new().run()
+	
 func queue_free() -> void:
 	_entity = null
 	_world.clear()

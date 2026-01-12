@@ -57,8 +57,8 @@ func _test_spawn_chain() -> void:
 	print_rich("[color=cyan]> Testing Spawn Chain (OP_SPAWN + OP_ADD_TO_NEW)[/color]")
 	
 	_commands.spawn()\
-		.add("Health", ECSDataComponent.new(100))\
-		.add("Position", ECSComponent.new())
+		.add_component("Health", ECSDataComponent.new(100))\
+		.add_component("Position", ECSComponent.new())
 	
 	_assert(_commands.is_empty() == false, "Commands stream should not be empty")
 	_commands.flush(_world)
@@ -84,8 +84,8 @@ func _test_entity_modification() -> void:
 	var eid = e.id()
 	
 	_commands.entity(eid)\
-		.add("NewComp", ECSDataComponent.new("new_data"))\
-		.remove("OldComp")
+		.add_component("NewComp", ECSDataComponent.new("new_data"))\
+		.remove_component("OldComp")
 		
 	_commands.flush(_world)
 	
@@ -146,11 +146,11 @@ func _test_command_merge() -> void:
 	print_rich("[color=cyan]> Testing Command Merge (Thread Simulation)[/color]")
 	
 	var cmd_thread_a = Commands.new()
-	cmd_thread_a.spawn().add("ThreadA", ECSComponent.new())
+	cmd_thread_a.spawn().add_component("ThreadA", ECSComponent.new())
 	cmd_thread_a.notify("thread_event", "A")
 	
 	var cmd_thread_b = Commands.new()
-	cmd_thread_b.spawn().add("ThreadB", ECSComponent.new())
+	cmd_thread_b.spawn().add_component("ThreadB", ECSComponent.new())
 	cmd_thread_b.notify("thread_event", "B")
 	
 	_commands.merge(cmd_thread_a)

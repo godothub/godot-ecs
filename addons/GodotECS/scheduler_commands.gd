@@ -165,20 +165,20 @@ class EntityCommands extends RefCounted:
 		_cmd = cmd
 		_id = id
 	
-	func add(name: StringName, component: ECSComponent) -> EntityCommands:
+	func add_component(name: StringName, component: ECSComponent) -> EntityCommands:
 		_cmd._stream.append(Commands.OP_ADD_COMP)
 		_cmd._stream.append(_id)
 		_cmd._stream.append(name)
 		_cmd._stream.append(component)
 		return self
 		
-	func remove(name: StringName) -> EntityCommands:
+	func remove_component(name: StringName) -> EntityCommands:
 		_cmd._stream.append(Commands.OP_RM_COMP)
 		_cmd._stream.append(_id)
 		_cmd._stream.append(name)
 		return self
 		
-	func remove_all() -> EntityCommands:
+	func remove_all_components() -> EntityCommands:
 		_cmd._stream.append(Commands.OP_RM_ALL)
 		_cmd._stream.append(_id)
 		return self
@@ -194,7 +194,7 @@ class Spawner extends RefCounted:
 	func _init(cmd: Commands) -> void:
 		_cmd = cmd
 	
-	func add(name: StringName, component: ECSComponent = null) -> Spawner:
+	func add_component(name: StringName, component: ECSComponent = null) -> Spawner:
 		if component == null:
 			component = ECSComponent.new()
 		_cmd._stream.append(Commands.OP_ADD_TO_NEW)

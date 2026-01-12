@@ -10,15 +10,15 @@ func name() -> StringName:
 func world() -> ECSWorld:
 	return _world.get_ref()
 	
-func view(name: StringName, filter := Callable()) -> Array:
+func view(name: StringName) -> Array:
 	var w := world()
 	w.on_system_viewed.emit(self.name(), [name])
-	return w.view(name, filter)
+	return w.view(name)
 	
-func multi_view(names: Array, filter := Callable()) -> Array:
+func multi_view(names: Array) -> Array:
 	var w := world()
 	w.on_system_viewed.emit(self.name(), names)
-	return w.multi_view(names, filter)
+	return w.multi_view(names)
 	
 func get_remote_sender_id() -> int:
 	return multiplayer.get_remote_sender_id()

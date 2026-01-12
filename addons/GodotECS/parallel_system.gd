@@ -62,8 +62,8 @@ func views_count() -> int:
 	
 func flush_commands() -> void:
 	for c: Commands in _sub_commands:
-		c.flush()
-	_root_commands.flush()
+		c.flush(_world)
+	_root_commands.flush(_world)
 	
 # final
 func thread_function(delta: float, task_poster := Callable(), steal_and_execute := Callable()) -> void:

@@ -5,15 +5,18 @@ const Querier = preload("querier.gd")
 # ==============================================================================
 # public
 func with(names: Array) -> Querier:
-	_with_names = names
+	_with_names.clear()
+	_with_names.append_array(names)
 	return self
 	
 func without(names: Array) -> Querier:
-	_without_names = names
+	_without_names.clear()
+	_without_names.append_array(names)
 	return self
 	
 func any_of(names: Array) -> Querier:
-	_any_names = names
+	_any_names.clear()
+	_any_names.append_array(names)
 	return self
 	
 func filter(predicate: Callable) -> Querier:

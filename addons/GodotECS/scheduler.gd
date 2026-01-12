@@ -26,8 +26,6 @@ func add_systems(systems: Array) -> ECSScheduler:
 ## Clear the scheduler
 func clear() -> void:
 	# clear system pool
-	for sys: ECSParallel in _system_pool.values():
-		sys.queue_free()
 	_system_pool.clear()
 	_batch_systems.clear()
 	

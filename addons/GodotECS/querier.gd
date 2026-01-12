@@ -1,21 +1,22 @@
 extends RefCounted
-class_name __Querier__
+
+const Querier = preload("querier.gd")
 
 # ==============================================================================
 # public
-func with(names: Array) -> __Querier__:
+func with(names: Array) -> Querier:
 	_with_names = names
 	return self
 	
-func without(names: Array) -> __Querier__:
+func without(names: Array) -> Querier:
 	_without_names = names
 	return self
 	
-func any_of(names: Array) -> __Querier__:
+func any_of(names: Array) -> Querier:
 	_any_names = names
 	return self
 	
-func filter(predicate: Callable) -> __Querier__:
+func filter(predicate: Callable) -> Querier:
 	_custom_filter = predicate
 	return self
 	

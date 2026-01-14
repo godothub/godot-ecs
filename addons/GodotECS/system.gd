@@ -20,6 +20,12 @@ func multi_view(names: Array) -> Array:
 	w.on_system_viewed.emit(self.name(), names)
 	return w.multi_view(names)
 	
+func multi_view_cache(names: Array) -> ECSWorld.QueryCache:
+	return world().multi_view_cache(names)
+	
+func query() -> ECSWorld.Querier:
+	return world().query()
+	
 func get_remote_sender_id() -> int:
 	return multiplayer.get_remote_sender_id()
 	

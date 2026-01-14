@@ -29,6 +29,9 @@ var _sub_commands: Array[Commands]
 func name() -> StringName:
 	return _name
 	
+func world() -> ECSWorld:
+	return _world
+	
 func before(systems: Array) -> ECSParallel:
 	_before_list = systems
 	return self

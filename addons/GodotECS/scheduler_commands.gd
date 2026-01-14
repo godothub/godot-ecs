@@ -12,6 +12,7 @@ enum {
 	OP_ADD_TO_NEW,      # [OP_ADD_TO_NEW, name, component] -> Adds to 'current_entity'
 	OP_RM_COMP,         # [OP_RM_COMP, entity_id, name]
 	OP_RM_ALL,          # [OP_RM_ALL, entity_id]
+	OP_DEFER,           # [OP_DEFER, callable] -> New OpCode
 }
 
 # ==============================================================================
@@ -26,6 +27,13 @@ var _event_buffer: Dictionary = {}
 # ==============================================================================
 # Public API (Fluent Interface)
 # ==============================================================================
+
+## 延迟执行一个自定义操作 (线程安全)
+## 该操作会被记录，并在 flush 阶段(通常是主线程)执行
+## 用法: commands.defer(func(): print("Safe on main thread"))
+func defer(operation: Callable) -> void:
+	_stream.append(OP_DEFER)
+	_stream.append(operation)
 
 ## 获取针对特定实体的命令操作接口
 ## 用法: commands.entity(id).add_component(...).destroy()
@@ -131,6 +139,14 @@ func _flush_stream(world: ECSWorld) -> void:
 				var eid: int = _stream[idx]
 				idx += 1
 				world.remove_all_components(eid)
+				
+			OP_DEFER:
+				var operation: Callable = _stream[idx]
+				idx += 1
+				if operation.is_valid():
+					operation.call()
+				else:
+					push_error("[ECS] Deferred callable is invalid during flush.")
 
 func _flush_events(world: ECSWorld) -> void:
 	# 优化：每个事件名只查找一次 Listener

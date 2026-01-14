@@ -21,6 +21,7 @@ func run() -> void:
 	_run_test("Query System (With/Without/AnyOf)", _test_query_system)
 	_run_test("Event System", _test_events)
 	_run_test("Command Buffer", _test_commands)
+	_run_test("Command Buffer Defer", _test_commands_defer)
 	_run_test("Scheduler & Parallel Systems", _test_scheduler_dependency)
 	_run_test("Serialization (Pack/Unpack)", _test_serialization)
 	
@@ -212,6 +213,58 @@ func _test_commands() -> void:
 			if _world.has_component(id, "Health"):
 				new_entity_found = true
 	_assert(new_entity_found, "After flush: Spawned entity has Health")
+
+func _test_commands_defer() -> void:
+	var cmds = ECSSchedulerCommands.new()
+	
+	# --- Case 1: Basic Defer Execution ---
+	
+	# Prepare capture context (simulate side effects)
+	var context = { "count": 0, "text": "" }
+	
+	# Queue operations
+	cmds.defer(func():
+		context.count += 1
+		context.text = "deferred"
+	)
+	
+	# Verify BEFORE flush
+	_assert(context.count == 0, "Before flush: Callback should NOT execute yet")
+	_assert(context.text == "", "Before flush: Text remains default")
+	
+	# Execute
+	cmds.flush(_world)
+	
+	# Verify AFTER flush
+	_assert(context.count == 1, "After flush: Callback executed exactly once")
+	_assert(context.text == "deferred", "After flush: Text updated")
+	
+	
+	# --- Case 2: Mixed Order (Command Stream Sequence) ---
+	
+	var cmds_mixed = ECSSchedulerCommands.new()
+	var e = _world.create_entity()
+	var eid = e.id()
+	
+	# Context to capture world state inside the deferred call
+	var check_state = { "has_entity_inside_defer": true }
+	
+	# Queue: Destroy Entity -> Then Defer Logic
+	# 逻辑预期：flush 时会先执行 OP_DESTROY，然后执行 OP_DEFER
+	cmds_mixed.entity(eid).destroy()
+	cmds_mixed.defer(func():
+		# Check if the entity still exists at this specific moment in the stream
+		check_state.has_entity_inside_defer = _world.has_entity(eid)
+	)
+	
+	_assert(_world.has_entity(eid), "Before flush: Entity still exists")
+	
+	# Execute
+	cmds_mixed.flush(_world)
+	
+	# Verify
+	_assert(not _world.has_entity(eid), "After flush: Entity is destroyed")
+	_assert(check_state.has_entity_inside_defer == false, "Inside defer: Should perceive the entity as already destroyed (Sequential consistency)")
 
 # --- Scheduler Mock Systems ---
 # 模拟一个产生数据的系统

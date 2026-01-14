@@ -46,11 +46,18 @@ func run() -> void:
 		print_rich("[b][color=red]CRITICAL FAILURE: Scheduler logic is flawed![/color][/b]")
 		# 强制报错以中断 CI/CD 流程
 		assert(_fail_count == 0, "Scheduler Verification Failed")
-
+	
+	_teardown()
+	
 func _setup() -> void:
 	if _world: _world.clear()
 	_world = ECSWorld.new("StrictTestWorld")
 	_world.debug_print = false
+
+func _teardown() -> void:
+	if _world:
+		_world.clear()
+		_world = null
 
 func _run_test(name: String, func_ref: Callable) -> void:
 	print_rich("[color=cyan]> Analyzing: %s...[/color]" % name)

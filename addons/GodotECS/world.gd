@@ -37,8 +37,10 @@ func _init(name := "ECSWorld") -> void:
 func name() -> StringName:
 	return _name
 	
+## Before setting ECSWorld to null, always call clear to clean up resources; otherwise, memory leaks may occur.
 func clear() -> void:
 	remove_all_systems()
+	remove_all_schedulers()
 	remove_all_entities()
 	
 # user valid entity id (0x1 ~ 0xFFFFFFFF)
@@ -297,6 +299,11 @@ func destroy_scheduler(name: StringName) -> bool:
 	
 func get_scheduler(name: StringName) -> ECSScheduler:
 	return _scheduler_pool.get(name)
+	
+func remove_all_schedulers() -> void:
+	var keys := _scheduler_pool.keys()
+	while not keys.is_empty():
+		destroy_scheduler(keys.pop_back())
 	
 var _scheduler_pool: Dictionary[StringName, ECSScheduler]
 	

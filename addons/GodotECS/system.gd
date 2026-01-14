@@ -1,48 +1,31 @@
+## A system class for processing component data on the main thread.
+## It inherits from Node to utilize RPC functionality, 
+## which is essential for online games as it greatly simplifies the implementation of network synchronizatio.
 extends Node
 class_name ECSSystem
 
 var _name: StringName
-var _world: WeakRef
+var _world: ECSWorld
 
 func name() -> StringName:
 	return _name
 	
 func world() -> ECSWorld:
-	return _world.get_ref()
+	return _world
 	
 func view(name: StringName) -> Array:
-	var w := world()
-	w.on_system_viewed.emit(self.name(), [name])
-	return w.view(name)
+	_world.on_system_viewed.emit(self.name(), [name])
+	return _world.view(name)
 	
 func multi_view(names: Array) -> Array:
-	var w := world()
-	w.on_system_viewed.emit(self.name(), names)
-	return w.multi_view(names)
+	_world.on_system_viewed.emit(self.name(), names)
+	return _world.multi_view(names)
 	
 func multi_view_cache(names: Array) -> ECSWorld.QueryCache:
-	return world().multi_view_cache(names)
+	return _world.multi_view_cache(names)
 	
 func query() -> ECSWorld.Querier:
-	return world().query()
-	
-func get_remote_sender_id() -> int:
-	return multiplayer.get_remote_sender_id()
-	
-func get_rpc_unique_id() -> int:
-	return multiplayer.get_unique_id()
-	
-func is_server() -> bool:
-	return multiplayer.is_server()
-	
-func is_peer_connected() -> bool:
-	return peer().get_connection_status() == MultiplayerPeer.CONNECTION_CONNECTED
-	
-func peer() -> MultiplayerPeer:
-	return multiplayer.multiplayer_peer
-	
-func set_peer(peer: MultiplayerPeer) -> void:
-	multiplayer.multiplayer_peer = peer
+	return _world.query()
 	
 func on_enter(w: ECSWorld) -> void:
 	if w.debug_print:
@@ -94,7 +77,7 @@ func _set_name(n: StringName) -> void:
 	set_name(n)
 	
 func _set_world(w: ECSWorld) -> void:
-	_world = weakref(w)
+	_world = w
 	
 func _to_string() -> String:
 	return "system:%s" % _name

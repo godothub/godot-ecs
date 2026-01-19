@@ -284,9 +284,9 @@ class SysConsumer extends ECSParallel:
 	func _list_components() -> Dictionary:
 		return {"Val": ECSParallel.READ_ONLY}
 	func _parallel() -> bool: return false # 为了累加测试方便，设为单线程
-	func thread_function(delta: float, tp = Callable(), ste = Callable()) -> void:
+	func thread_function(delta: float) -> void:
 		total_sum = 0 # Reset per frame
-		super.thread_function(delta, tp, ste)
+		super.thread_function(delta)
 		
 	func _view_components(view: Dictionary, cmds: ECSSchedulerCommands) -> void:
 		var c = view["Val"] as ECSDataComponent

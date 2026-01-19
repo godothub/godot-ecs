@@ -1,16 +1,27 @@
 extends RefCounted
 class_name ECSScheduler
 
+## A DAG-based scheduler that manages ECSParallel system execution order.
+## Automatically resolves dependencies between systems and handles component access conflicts.
+## Systems are grouped into batches that can execute in parallel based on dependency analysis.
+
 var _world: ECSWorld
 var _threads_size: int
 var _system_pool: Dictionary[StringName, ECSParallel]
 var _system_graph: Dictionary[StringName, Array]
 var _system_conflict: Dictionary[StringName, Dictionary]
 var _system_group: Dictionary[StringName, int]
-
-# batch parallel systems
 var _batch_systems: Array[Array]
 
+# ==============================================================================
+# Public API - System Management
+# ==============================================================================
+
+## Adds systems to the scheduler and configures their dependencies.
+## Systems must override _list_components() to declare component access.
+## @param systems: Array of ECSParallel instances to add.
+## @return: This scheduler instance for method chaining.
+## @assert: Each system must declare at least one component access.
 func add_systems(systems: Array) -> ECSScheduler:
 	for sys: ECSParallel in systems:
 		assert(not sys._list_components().is_empty())
@@ -22,18 +33,19 @@ func add_systems(systems: Array) -> ECSScheduler:
 		sys.fetch_group(_set_system_group)
 		sys._set_world(_world)
 	return self
-	
-## Clear the scheduler
+
+## Clears all systems and built execution batches.
 func clear() -> void:
-	# clear system pool
 	_system_pool.clear()
 	_batch_systems.clear()
-	
-	# other
 	_system_graph.clear()
 	_system_conflict.clear()
 	_system_group.clear()
-	
+
+## Builds the execution schedule by analyzing dependencies and conflicts.
+## Must be called after adding all systems and before running.
+## @return: This scheduler instance for method chaining.
+## @assert: At least one system must be added.
 func build() -> ECSScheduler:
 	assert(not _system_pool.is_empty())
 	_batch_systems.clear()
@@ -42,13 +54,21 @@ func build() -> ECSScheduler:
 	else:
 		_build_batch_systems()
 	return self
-	
+
+## Runs one frame of system execution.
+## Executes all batches and flushes queued commands.
+## @param _delta: Time elapsed since last frame (unused, passed to systems).
 func run(_delta: float = 0.0) -> void:
 	_run_systems(_delta)
 	_flush_commands()
-	
+
 # ==============================================================================
-# private
+# Private Methods - Dependency Graph
+# ==============================================================================
+
+## Internal: Inserts a dependency edge into the system graph.
+## @param key: System that must run first.
+## @param value: System that depends on key (must run after key).
 func _insert_graph_node(key: StringName, value: StringName) -> void:
 	assert(_system_pool.has(value), "Scheduler must have system key [%s]!" % value)
 	if not _system_graph.has(key):
@@ -57,36 +77,58 @@ func _insert_graph_node(key: StringName, value: StringName) -> void:
 	if value in list:
 		return
 	list.append(value)
-	
+
+## Internal: Callback for systems declaring their before dependencies.
+## @param name: System name.
+## @param before_systems: Array of system names that must run after this system.
 func _set_system_before(name: StringName, before_systems: Array) -> void:
 	for key: StringName in before_systems:
 		_insert_graph_node(name, key)
-	
+
+## Internal: Callback for systems declaring their after dependencies.
+## @param name: System name.
+## @param after_systems: Array of system names that must run before this system.
 func _set_system_after(name: StringName, after_systems: Array) -> void:
 	for key: StringName in after_systems:
 		_insert_graph_node(key, name)
-	
+
+## Internal: Stores component access conflict information for a system.
+## @param name: System name.
+## @param table: Dictionary mapping component names to access modes.
 func _set_system_conflict(name: StringName, table: Dictionary) -> void:
 	_system_conflict[name] = table
-	
+
+## Internal: Stores scheduling group assignment for a system.
+## @param name: System name.
+## @param group: Integer group identifier.
 func _set_system_group(name: StringName, group: int) -> void:
 	_system_group[name] = group
-	
+
+# ==============================================================================
+# Private Methods - Initialization & Execution
+# ==============================================================================
+
+## Internal: Creates a new scheduler for the given world.
+## @param world: The ECSWorld this scheduler belongs to.
 func _init(world: ECSWorld) -> void:
 	_world = world
-	
+
+## Internal: Executes all systems in their scheduled batches.
+## @param delta: Time elapsed since last frame.
 func _run_systems(delta: float) -> void:
 	for systems: Array in _batch_systems:
 		var task_id := WorkerThreadPool.add_group_task(func(index: int):
 			systems[index].thread_function(delta),
 			systems.size())
 		WorkerThreadPool.wait_for_group_task_completion(task_id)
-	
+
+## Internal: Flushes all commands queued by systems.
 func _flush_commands() -> void:
 	for systems: Array in _batch_systems:
 		for sys: ECSParallel in systems:
 			sys.flush_commands()
-	
+
+## Internal: Builds execution batches using dependency analysis.
 func _build_batch_systems() -> void:
 	DependencyBuilder.new()\
 		.with_dag(_system_graph)\
@@ -97,84 +139,79 @@ func _build_batch_systems() -> void:
 			return _system_pool[key]
 		))
 	)
-	
+
 # ==============================================================================
-# private
+# Inner Class - DependencyBuilder
+# ==============================================================================
+
+## Helper class for building execution batches from dependency graph.
+## Uses Kahn's algorithm for topological sorting with conflict-aware batching.
 class DependencyBuilder extends RefCounted:
 	var _graph: Dictionary[StringName, Array] = {}
 	var _conflict: Dictionary[StringName, Dictionary] = {}
 	var _group: Dictionary[StringName, int] = {}
-	
-	# set dependency graph
+
+	## Sets the dependency graph (DAG).
+	## @param graph: Dictionary mapping system names to arrays of dependent systems.
+	## @return: This builder for method chaining.
 	func with_dag(graph: Dictionary[StringName, Array]) -> DependencyBuilder:
 		_graph.merge(graph, true)
 		return self
-		
-	# set read write conflict
+
+	## Sets the component access conflict table.
+	## @param conf: Dictionary mapping system names to component access patterns.
+	## @return: This builder for method chaining.
 	func with_conflict(conf: Dictionary[StringName, Dictionary]) -> DependencyBuilder:
 		_conflict.merge(conf, true)
 		return self
-		
-	# set system group
+
+	## Sets the system group assignments.
+	## @param group: Dictionary mapping system names to group IDs.
+	## @return: This builder for method chaining.
 	func with_group(group: Dictionary[StringName, int]) -> DependencyBuilder:
 		_group.merge(group, true)
 		return self
-		
-	# catch every batch system names
+
+	## Builds execution batches and invokes callback for each batch.
+	## @param catch: Callable that receives Array of system names for each batch.
 	func build(catch := Callable()) -> void:
-		# 1. 整理所有系统 Key (以 Group 字典为准，因为所有系统都会注册 Group)
 		var all_systems: Array = _group.keys()
 		var in_degree: Dictionary = {}
 		
-		# 初始化入度
 		for key: StringName in all_systems:
 			in_degree[key] = 0
 			
-		# 2. 计算入度 (In-Degree)
-		# 遍历邻接表 _graph: Key -> [Children]
 		for u: StringName in _graph:
 			for v: StringName in _graph[u]:
-				# 确保 v 存在于系统中，防止无效引用
 				if in_degree.has(v):
 					in_degree[v] += 1
 					
-		# 3. 初始化 Ready Queue (入度为 0 的节点)
 		var ready_queue: Array[StringName] = []
 		for key: StringName in all_systems:
 			if in_degree[key] == 0:
 				ready_queue.append(key)
 				
-		# 按照 Group ID 排序 Ready Queue，作为一种简单的启发式优化
-		# Group 小的系统倾向于排在前面处理，虽然不强制，但有助于逻辑分层
 		_sort_by_group(ready_queue)
 		
 		var result_batches: Array[Array] = []
 		var processed_count: int = 0
 		var total_count: int = all_systems.size()
 		
-		# 4. 分批循环 (Batching Loop)
 		while processed_count < total_count:
 			if ready_queue.is_empty():
 				push_error("[ECS] Scheduler Cycle Detected! Dependency graph has a loop.")
 				break
 				
 			var current_batch: Array[StringName] = []
-			
-			# 当前 Batch 占用的资源锁
-			# key: ComponentName, value: true (used)
-			var batch_reads: Dictionary = {} 
+			var batch_reads: Dictionary = {}
 			var batch_writes: Dictionary = {}
+			var next_loop_deferred: Array[StringName] = []
+			var unlocked_nodes: Array[StringName] = []
 			
-			var next_loop_deferred: Array[StringName] = [] # 因冲突本轮没跑的
-			var unlocked_nodes: Array[StringName] = []     # 本轮跑完解锁的
-			
-			# 贪婪匹配：尝试把 ready_queue 里的系统塞入 current_batch
 			for sys_name: StringName in ready_queue:
 				if _is_conflict(sys_name, batch_reads, batch_writes):
-					# 冲突：留到下一轮
 					next_loop_deferred.append(sys_name)
 				else:
-					# 兼容：加入当前 Batch
 					current_batch.append(sys_name)
 					_mark_access(sys_name, batch_reads, batch_writes)
 			
@@ -182,12 +219,9 @@ class DependencyBuilder extends RefCounted:
 				push_error("[ECS] Scheduler Deadlock! Logic error or unsolvable resource conflict.")
 				break
 				
-			# 记录结果
 			result_batches.append(current_batch)
 			processed_count += current_batch.size()
 			
-			# 5. 解锁后继节点 (Topological Advance)
-			# 只有在 current_batch 里真正执行了的节点，才能解锁它们的后继
 			for executed_sys: StringName in current_batch:
 				if _graph.has(executed_sys):
 					for neighbor: StringName in _graph[executed_sys]:
@@ -196,36 +230,33 @@ class DependencyBuilder extends RefCounted:
 							if in_degree[neighbor] == 0:
 								unlocked_nodes.append(neighbor)
 			
-			# 6. 准备下一轮的队列
-			# 下一轮候选 = (本轮冲突的) + (本轮解锁的)
-			# 再次排序优化执行顺序
-			_sort_by_group(unlocked_nodes) 
+			_sort_by_group(unlocked_nodes)
 			ready_queue = next_loop_deferred + unlocked_nodes
 			
-		# 返回结果：Array[Array[StringName]]
 		for batch_keys: Array in result_batches:
 			catch.call(batch_keys)
 
-	# --- Helpers ---
-	
-	# 检查系统是否与当前 Batch 冲突
+	## Checks if adding a system to the current batch would cause write conflicts.
+	## Detects: (1) write-write conflict if batch has writes, (2) write-read conflict if batch has reads.
+	## @param sys_name: System name to check.
+	## @param batch_reads: Dictionary of components being read in current batch.
+	## @param batch_writes: Dictionary of components being written in current batch.
+	## @return: True if adding this system would cause a write conflict.
 	func _is_conflict(sys_name: StringName, batch_reads: Dictionary, batch_writes: Dictionary) -> bool:
 		var sys_access: Dictionary = _conflict.get(sys_name, {})
 		for comp: StringName in sys_access:
 			var access_type: int = sys_access[comp]
-			
-			# 规则 1: 如果当前 Batch 已经有人在该组件上写数据 -> 绝对冲突 (无论我是读还是写)
 			if batch_writes.has(comp):
 				return true
-				
-			# 规则 2: 如果我想写数据 -> 检查当前 Batch 是否有人在读 (写读冲突) 或 写 (写写冲突已由规则1覆盖)
 			if access_type == ECSParallel.READ_WRITE:
 				if batch_reads.has(comp):
 					return true
-					
 		return false
-		
-	# 标记资源占用
+
+	## Marks component access for conflict detection.
+	## @param sys_name: System name.
+	## @param batch_reads: Dictionary to record read accesses.
+	## @param batch_writes: Dictionary to record write accesses.
 	func _mark_access(sys_name: StringName, batch_reads: Dictionary, batch_writes: Dictionary) -> void:
 		var sys_access: Dictionary = _conflict.get(sys_name, {})
 		for comp: StringName in sys_access:
@@ -234,10 +265,10 @@ class DependencyBuilder extends RefCounted:
 				batch_reads[comp] = true
 			else:
 				batch_writes[comp] = true
-				
-	# 简单的排序辅助，让 Group ID 小的排前面
+
+	## Sorts systems by group ID for deterministic execution order.
+	## @param arr: Array of system names to sort.
 	func _sort_by_group(arr: Array[StringName]) -> void:
 		arr.sort_custom(func(a, b):
 			return _group.get(a, 0) < _group.get(b, 0)
 		)
-	

@@ -35,22 +35,30 @@ In your main scene script:
 extends Node
 
 var _world: ECSWorld
+var _runner: ECSRunner
 
 func _ready() -> void:
     # Create world
     _world = ECSWorld.new("MyGameWorld")
-
-    # Register system (Direct Mode example)
-    _world.add_system("MoveSystem", SysMovement.new())
+    
+    # Create a runner for single-threaded systems (recommended approach)
+    _runner = _world.create_runner("GameLogic")
+    
+    # Add systems to the runner
+    _runner.add_system("MoveSystem", SysMovement.new())
 
     # Create an entity
     var entity = _world.create_entity()
     entity.add_component("Position", CompPos.new(0, 0))
     entity.add_component("Velocity", CompVel.new(10, 0))
 
+# OLD WAY (deprecated, for reference):
+# _world.add_system("MoveSystem", SysMovement.new())
+# _world.update(delta)
+
 func _process(delta: float) -> void:
-    # Drive world update
-    _world.update(delta)
+    # Drive runner updates (recommended way)
+    _runner.run(delta)
 
 func _exit_tree() -> void:
     _world.clear()
@@ -71,7 +79,51 @@ class CompVel extends ECSDataComponent:
     pass 
 ```
 
-### 3. Define Systems
+### 3. Using ECSRunner (Recommended)
+
+**ECSRunner** is the recommended way to manage single-threaded systems. It provides system grouping, better organization, and a consistent API style with ECSScheduler.
+
+> **Note**: The direct `world.add_system()` and `world.update()` methods are **deprecated** but still supported for backward compatibility.
+
+```gdscript
+extends Node
+
+var _world: ECSWorld
+var _runner: ECSRunner
+
+func _ready() -> void:
+    # Create world
+    _world = ECSWorld.new("MyGameWorld")
+    
+    # Create a named runner for single-threaded systems
+    _runner = _world.create_runner("GameLogic")
+    
+    # Add systems to the runner (supports method chaining)
+    _runner.add_system("MoveSystem", SysMovement.new())
+           .add_system("RenderSystem", SysRender.new())
+    
+    # Create an entity
+    var entity = _world.create_entity()
+    entity.add_component("Position", CompPos.new(0, 0))
+    entity.add_component("Velocity", CompVel.new(10, 0))
+
+func _process(delta: float) -> void:
+    # Drive runner updates (instead of world.update())
+    _runner.run(delta)
+
+func _exit_tree() -> void:
+    # Clean up
+    _world.clear()
+```
+
+**Benefits of ECSRunner:**
+- ✅ Clear system grouping and organization
+- ✅ Multiple runners for different system categories
+- ✅ Consistent API with ECSScheduler
+- ✅ Better scalability and maintainability
+- ✅ Individual system update control
+
+### 4. Define Systems
 
 #### Method A: Direct Mode (Simple & Intuitive)
 

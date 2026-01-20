@@ -35,22 +35,30 @@
 extends Node
 
 var _world: ECSWorld
+var _runner: ECSRunner
 
 func _ready() -> void:
     # 创建世界
     _world = ECSWorld.new("MyGameWorld")
-
-    # 注册系统 (直接模式示例)
-    _world.add_system("MoveSystem", SysMovement.new())
+    
+    # 创建执行器用于管理单线程系统（推荐方式）
+    _runner = _world.create_runner("GameLogic")
+    
+    # 向执行器添加系统
+    _runner.add_system("MoveSystem", SysMovement.new())
 
     # 创建一个实体
     var entity = _world.create_entity()
     entity.add_component("Position", CompPos.new(0, 0))
     entity.add_component("Velocity", CompVel.new(10, 0))
 
+# 旧方式（已弃用，仅供参考）：
+# _world.add_system("MoveSystem", SysMovement.new())
+# _world.update(delta)
+
 func _process(delta: float) -> void:
-    # 驱动世界更新
-    _world.update(delta)
+    # 驱动执行器更新（推荐方式）
+    _runner.run(delta)
 
 func _exit_tree() -> void:
     _world.clear()
@@ -71,7 +79,51 @@ class CompVel extends ECSDataComponent:
     pass 
 ```
 
-### 3. 定义系统
+### 3. 使用 ECSRunner（推荐）
+
+**ECSRunner** 是管理单线程系统的推荐方式。它提供系统分组、更好的组织结构，以及与 ECSScheduler 一致的 API 风格。
+
+> **注意**: 直接使用 `world.add_system()` 和 `world.update()` 的方法已被标记为**弃用**，但仍支持向后兼容。
+
+```gdscript
+extends Node
+
+var _world: ECSWorld
+var _runner: ECSRunner
+
+func _ready() -> void:
+    # 创建世界
+    _world = ECSWorld.new("MyGameWorld")
+    
+    # 创建命名执行器用于管理单线程系统
+    _runner = _world.create_runner("GameLogic")
+    
+    # 向执行器添加系统（支持链式调用）
+    _runner.add_system("MoveSystem", SysMovement.new())
+           .add_system("RenderSystem", SysRender.new())
+    
+    # 创建一个实体
+    var entity = _world.create_entity()
+    entity.add_component("Position", CompPos.new(0, 0))
+    entity.add_component("Velocity", CompVel.new(10, 0))
+
+func _process(delta: float) -> void:
+    # 驱动执行器更新（替代 world.update()）
+    _runner.run(delta)
+
+func _exit_tree() -> void:
+    # 清理资源
+    _world.clear()
+```
+
+**ECSRunner 的优势：**
+- ✅ 清晰的系统分组和组织结构
+- ✅ 可创建多个执行器管理不同类别的系统
+- ✅ 与 ECSScheduler 保持一致的 API 风格
+- ✅ 更好的可扩展性和可维护性
+- ✅ 单个系统更新控制
+
+### 4. 定义系统
 
 #### 方式 A: 直接模式 (简单直观)
 

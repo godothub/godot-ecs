@@ -24,6 +24,10 @@ func run() -> void:
 	_run_test("Command Buffer Defer", _test_commands_defer)
 	_run_test("Scheduler & Parallel Systems", _test_scheduler_dependency)
 	_run_test("Serialization (Pack/Unpack)", _test_serialization)
+	_run_test("ECSRunner System Management", _test_runner_system_management)
+	_run_test("ECSRunner Update Control", _test_runner_update_control)
+	_run_test("ECSRunner Lifecycle", _test_runner_lifecycle)
+	_run_test("ECSRunner Edge Cases", _test_runner_edge_cases)
 	
 	print_rich("[b]--------------------------------------------------[/b]")
 	if _fail_count == 0:
@@ -79,6 +83,26 @@ class CompPos extends ECSComponent:
 	func _on_unpack(ar: Serializer.Archive) -> void:
 		x = ar.get_var("x", 0)
 		y = ar.get_var("y", 0)
+
+# Mock system for testing ECSRunner
+class MockSystem extends ECSSystem:
+	var update_count: int = 0
+	var enter_called: bool = false
+	var exit_called: bool = false
+	var test_data: Dictionary = {}
+	
+	func _on_enter(w: ECSWorld) -> void:
+		enter_called = true
+	
+	func _on_exit(w: ECSWorld) -> void:
+		exit_called = true
+	
+	func _on_update(delta: float) -> void:
+		update_count += 1
+
+# Mock system without _on_update for edge case testing
+class SystemNoUpdate extends ECSSystem:
+	pass
 
 # ==============================================================================
 # Test Cases
@@ -367,3 +391,140 @@ func _test_serialization() -> void:
 		if e_restored.has_component("Health"):
 			var h = e_restored.get_component("Health") as CompHealth
 			_assert(h.data == 50, "Component standard data restored correct")
+
+func _test_runner_system_management() -> void:
+	var runner = _world.create_runner("TestRunner")
+	
+	# Test: Add single system
+	var sys1 = MockSystem.new()
+	runner.add_system("Sys1", sys1)
+	_assert(runner.get_system("Sys1") == sys1, "Add single system - system retrieved correctly")
+	_assert(runner.get_systems().size() == 1, "Add single system - count correct")
+	
+	# Test: Add multiple systems
+	var sys2 = MockSystem.new()
+	var sys3 = MockSystem.new()
+	runner.add_systems({"Sys2": sys2, "Sys3": sys3})
+	_assert(runner.get_systems().size() == 3, "Add multiple systems - count correct")
+	_assert(runner.get_system("Sys2") == sys2, "Add multiple systems - Sys2 retrieved")
+	_assert(runner.get_system("Sys3") == sys3, "Add multiple systems - Sys3 retrieved")
+	
+	# Test: Replace system with same name
+	var sys1_new = MockSystem.new()
+	runner.add_system("Sys1", sys1_new)
+	_assert(runner.get_system("Sys1") == sys1_new, "Replace system - new system retrieved")
+	_assert(sys1.exit_called, "Replace system - old system exit called")
+	_assert(sys1_new.enter_called, "Replace system - new system enter called")
+	
+	# Test: Remove system
+	runner.remove_system("Sys2")
+	_assert(runner.get_system("Sys2") == null, "Remove system - system is null")
+	_assert(runner.get_systems().size() == 2, "Remove system - count reduced")
+	_assert(sys2.exit_called, "Remove system - exit called")
+	
+	# Test: Clear all systems
+	runner.clear()
+	_assert(runner.get_systems().is_empty(), "Clear all systems - pool empty")
+	_assert(sys1_new.exit_called, "Clear all systems - systems exit called")
+	_assert(sys3.exit_called, "Clear all systems - systems exit called")
+	
+	_world.destroy_runner("TestRunner")
+
+func _test_runner_update_control() -> void:
+	var runner = _world.create_runner("TestRunner")
+	
+	# Test: Run one frame
+	var sys1 = MockSystem.new()
+	var sys2 = MockSystem.new()
+	runner.add_systems({"Sys1": sys1, "Sys2": sys2})
+	runner.run(0.016)
+	_assert(sys1.update_count == 1, "Run frame - Sys1 update called once")
+	_assert(sys2.update_count == 1, "Run frame - Sys2 update called once")
+	
+	# Test: Disable single system
+	runner.set_system_update("Sys1", false)
+	_assert(not runner.is_system_updating("Sys1"), "Disable system - is_system_updating returns false")
+	_assert(runner.is_system_updating("Sys2"), "Disable system - other system still updating")
+	
+	runner.run(0.016)
+	_assert(sys1.update_count == 1, "Disable system - Sys1 not updated")
+	_assert(sys2.update_count == 2, "Disable system - Sys2 updated")
+	
+	# Test: Enable system again
+	runner.set_system_update("Sys1", true)
+	_assert(runner.is_system_updating("Sys1"), "Enable system - is_system_updating returns true")
+	
+	runner.run(0.016)
+	_assert(sys1.update_count == 2, "Enable system - Sys1 updated again")
+	_assert(sys2.update_count == 3, "Enable system - Sys2 continues updating")
+	
+	# Test: Disable all systems
+	runner.set_systems_update(false)
+	_assert(not runner.is_system_updating("Sys1"), "Disable all - Sys1 not updating")
+	_assert(not runner.is_system_updating("Sys2"), "Disable all - Sys2 not updating")
+	
+	runner.run(0.016)
+	_assert(sys1.update_count == 2, "Disable all - Sys1 not updated")
+	_assert(sys2.update_count == 3, "Disable all - Sys2 not updated")
+	
+	# Test: Enable all systems
+	runner.set_systems_update(true)
+	_assert(runner.is_system_updating("Sys1"), "Enable all - Sys1 updating")
+	_assert(runner.is_system_updating("Sys2"), "Enable all - Sys2 updating")
+	
+	runner.run(0.016)
+	_assert(sys1.update_count == 3, "Enable all - Sys1 updated")
+	_assert(sys2.update_count == 4, "Enable all - Sys2 updated")
+	
+	_world.destroy_runner("TestRunner")
+
+func _test_runner_lifecycle() -> void:
+	var runner = _world.create_runner("TestRunner")
+	
+	# Test: _on_enter is called when adding system
+	var sys = MockSystem.new()
+	_assert(not sys.enter_called, "Before add - enter not called")
+	runner.add_system("TestSys", sys)
+	_assert(sys.enter_called, "After add - enter called")
+	
+	# Test: System name and world reference are set
+	_assert(sys.name() == "TestSys", "System name set correctly")
+	_assert(sys.world() == _world, "System world reference set correctly")
+	
+	# Test: _on_exit is called when removing system
+	var sys2 = MockSystem.new()
+	runner.add_system("TestSys2", sys2)
+	_assert(not sys2.exit_called, "Before remove - exit not called")
+	runner.remove_system("TestSys2")
+	_assert(sys2.exit_called, "After remove - exit called")
+	
+	_world.destroy_runner("TestRunner")
+
+func _test_runner_edge_cases() -> void:
+	var runner = _world.create_runner("TestRunner")
+	
+	# Test: Remove non-existent system
+	var result = runner.remove_system("NonExistent")
+	_assert(not result, "Remove non-existent system returns false")
+	
+	# Test: Get non-existent system
+	var sys = runner.get_system("NonExistent")
+	_assert(sys == null, "Get non-existent system returns null")
+	
+	# Test: Enable/disable non-existent system (should not crash)
+	runner.set_system_update("NonExistent", true)
+	runner.set_system_update("NonExistent", false)
+	_assert(true, "Enable/disable non-existent system does not crash")
+	
+	# Test: Check update status of non-existent system
+	var updating = runner.is_system_updating("NonExistent")
+	_assert(not updating, "is_system_updating for non-existent returns false")
+	
+	# Test: System without _on_update method
+	var sys_no_update = SystemNoUpdate.new()
+	runner.add_system("NoUpdate", sys_no_update)
+	_assert(runner.is_system_updating("NoUpdate") == false, "System without _on_update not connected")
+	runner.run(0.016) # Should not crash
+	_assert(true, "Running with system without _on_update does not crash")
+	
+	_world.destroy_runner("TestRunner")

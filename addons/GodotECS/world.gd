@@ -10,6 +10,9 @@ const Querier = preload("querier.gd")
 ## QueryCache class for caching multi-view query results.
 const QueryCache = preload("query_cache.gd")
 
+## ECSRunner class for single-threaded system execution.
+const ECSRunner = preload("runner.gd")
+
 ## When true, enables debug logging for ECS operations including entity/creation/destruction and component modifications.
 var debug_print: bool
 
@@ -42,6 +45,7 @@ var _type_component_dict: Dictionary
 var _entity_component_dict: Dictionary
 var _query_caches: Dictionary
 var _scheduler_pool: Dictionary[StringName, ECSScheduler]
+var _runner_pool: Dictionary[StringName, ECSRunner]
 
 ## Creates a new ECSWorld instance.
 ## @param name: Optional name for this world instance, defaults to "ECSWorld".
@@ -62,6 +66,7 @@ func name() -> StringName:
 ## Must be called before setting the world reference to null to prevent memory leaks.
 func clear() -> void:
 	remove_all_systems()
+	remove_all_runners()
 	remove_all_schedulers()
 	remove_all_entities()
 
@@ -257,7 +262,9 @@ func query() -> Querier:
 ## @param name: The StringName identifier for the system.
 ## @param system: The ECSSystem instance to add.
 ## @return: True if the system was successfully added.
+## @deprecated: Use ECSRunner.add_system() instead.
 func add_system(name: StringName, system: ECSSystem) -> bool:
+	push_warning("[Deprecated] add_system() is deprecated. Use ECSRunner.add_system() instead.")
 	remove_system(name)
 	_system_pool[name] = system
 	system._set_name(name)
@@ -339,7 +346,9 @@ func send(e: GameEvent) -> void:
 
 ## Triggers the update cycle, emitting the on_update signal to execute all connected systems.
 ## @param delta: The time elapsed since the last frame in seconds.
+## @deprecated: Use ECSRunner.run() instead.
 func update(delta: float) -> void:
+	push_warning("[Deprecated] update() is deprecated. Use ECSRunner.run() instead.")
 	on_update.emit(delta)
 
 ## Enables or disables a system's update callback.
@@ -401,6 +410,43 @@ func remove_all_schedulers() -> void:
 	var keys := _scheduler_pool.keys()
 	while not keys.is_empty():
 		destroy_scheduler(keys.pop_back())
+
+# ==============================================================================
+# Public API - Runner Management
+# ==============================================================================
+
+## Creates a new runner with the given name.
+## @param name: The StringName identifier for the runner.
+## @return: A new ECSRunner instance.
+## @assert: A runner with this name must not already exist.
+func create_runner(name: StringName) -> ECSRunner:
+	assert(not _runner_pool.has(name))
+	var result := ECSRunner.new(self)
+	_runner_pool[name] = result
+	return result
+
+## Destroys a runner and clears its resources.
+## @param name: The StringName identifier for the runner to destroy.
+## @return: True if the runner was found and destroyed.
+func destroy_runner(name: StringName) -> bool:
+	if not _runner_pool.has(name):
+		return false
+	var runner := _runner_pool[name]
+	runner.clear()
+	_runner_pool.erase(name)
+	return true
+
+## Retrieves a runner by its name.
+## @param name: The StringName identifier for the runner.
+## @return: The ECSRunner instance, or null if not found.
+func get_runner(name: StringName) -> ECSRunner:
+	return _runner_pool.get(name)
+
+## Destroys all runners in the pool.
+func remove_all_runners() -> void:
+	var keys := _runner_pool.keys()
+	while not keys.is_empty():
+		destroy_runner(keys.pop_back())
 
 # ==============================================================================
 # Private Methods - Internal Helpers

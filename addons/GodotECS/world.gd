@@ -399,6 +399,18 @@ func destroy_scheduler(name: StringName) -> bool:
 	_scheduler_pool.erase(name)
 	return true
 
+## Adds a custom scheduler to the world's scheduler pool.
+## @param name: The StringName identifier for the scheduler.
+## @param scheduler: The ECSScheduler instance to add.
+## @param override: If false, asserts that no scheduler with this name already exists. If true, replaces existing scheduler. Defaults to false.
+## @return: The added ECSScheduler instance.
+func add_scheduler(name: StringName, scheduler: ECSScheduler, override := false) -> ECSScheduler:
+	if not override:
+		assert(not _scheduler_pool.has(name))
+	destroy_scheduler(name)
+	_scheduler_pool[name] = scheduler
+	return scheduler
+
 ## Retrieves a scheduler by its name.
 ## @param name: The StringName identifier for the scheduler.
 ## @return: The ECSScheduler instance, or null if not found.
@@ -435,6 +447,18 @@ func destroy_runner(name: StringName) -> bool:
 	runner.clear()
 	_runner_pool.erase(name)
 	return true
+
+## Adds a custom runner to the world's runner pool.
+## @param name: The StringName identifier for the runner.
+## @param runner: The ECSRunner instance to add.
+## @param override: If false, asserts that no runner with this name already exists. If true, replaces existing runner. Defaults to false.
+## @return: The added ECSRunner instance.
+func add_runner(name: StringName, runner: ECSRunner, override := false) -> ECSRunner:
+	if not override:
+		assert(not _runner_pool.has(name))
+	destroy_runner(name)
+	_runner_pool[name] = runner
+	return runner
 
 ## Retrieves a runner by its name.
 ## @param name: The StringName identifier for the runner.

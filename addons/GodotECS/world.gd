@@ -227,7 +227,7 @@ func view(name: StringName) -> Array:
 ## @return: Array of Dictionary views, each containing entity and component data.
 func multi_view(names: Array) -> Array:
 	var cache := multi_view_cache(names)
-	return cache.results if cache else []
+	return cache.results.duplicate() if cache else []
 
 ## Gets or creates a cached query for multi-component queries.
 ## @param names: Array of StringName component types to query.

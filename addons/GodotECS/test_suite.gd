@@ -16,9 +16,10 @@ func run() -> void:
 	_fail_count = 0
 	_pass_count = 0
 	
-	# 执行各个测试模块
+	# Execute each test module
 	_run_test("Entity & Component CRUD", _test_entity_component_crud)
 	_run_test("Query System (With/Without/AnyOf)", _test_query_system)
+	_run_test("Query Cache Reactive", _test_query_cache_reactive)
 	_run_test("Event System", _test_events)
 	_run_test("Command Buffer", _test_commands)
 	_run_test("Command Buffer Defer", _test_commands_defer)
@@ -41,7 +42,7 @@ func _setup() -> void:
 	if _world:
 		_world.clear()
 	_world = ECSWorld.new("TestWorld")
-	# 关闭内部 Debug 打印以保持测试输出整洁，除非你需要调试框架本身
+	# Disable internal debug print to keep test output clean, unless you need to debug the framework itself
 	_world.debug_print = false 
 
 func _teardown() -> void:
@@ -53,13 +54,13 @@ func _run_test(test_name: String, test_func: Callable) -> void:
 	print_rich("[color=cyan]> Running: %s...[/color]" % test_name)
 	_setup()
 	test_func.call()
-	# 显式清理，防止状态污染
+	# Explicit cleanup to prevent state pollution
 	_teardown() 
 
 func _assert(condition: bool, msg: String) -> void:
 	if condition:
 		_pass_count += 1
-		# 成功时不打印，减少刷屏，或者只打印简略信息
+		# Don't print on success to reduce clutter
 		# print("  [OK] %s" % msg) 
 	else:
 		_fail_count += 1
@@ -70,13 +71,13 @@ func _assert(condition: bool, msg: String) -> void:
 # Mock Data (Inner Classes)
 # ==============================================================================
 
-# 定义一些测试用的组件
+# Define some test components
 class CompHealth extends ECSDataComponent: pass
 class CompMana extends ECSDataComponent: pass
 class CompPos extends ECSComponent: 
 	var x: int = 0
 	var y: int = 0
-	# 为了序列化测试，必须重写 pack/unpack
+	# Must override pack/unpack for serialization tests
 	func _on_pack(ar: Serializer.Archive) -> void:
 		ar.set_var("x", x)
 		ar.set_var("y", y)
@@ -186,6 +187,45 @@ func _test_query_system() -> void:
 	).exec()
 	_assert(res_filter.size() == 2, "Query Filter check")
 
+func _test_query_cache_reactive() -> void:
+	# --- 1. Initialize environment ---
+	var e = _world.create_entity()
+	e.add_component("Health", CompHealth.new(10))
+	# At this point e only has Health
+
+	# --- 2. Build cache (Cache Miss -> Build) ---
+	# We query entities with both [Health, Pos]
+	# Result should be empty at this point
+	var cache_view = _world.multi_view(["Health", "Pos"])
+	_assert(cache_view.is_empty(), "Cache should be empty initially")
+
+	# --- 3. Test: Dynamic component addition (Add -> Cache Update) ---
+	# Add Pos to e so it satisfies [Health, Pos] condition
+	e.add_component("Pos", CompPos.new())
+
+	# Get cache result again (note: multi_view returns same Array reference)
+	# Key point: We should NOT recreate query, check if previous view updated
+	var cache_view_after_add = _world.multi_view(["Health", "Pos"])
+
+	_assert(cache_view_after_add.size() == 1, "Cache should update after adding component")
+	_assert(cache_view_after_add[0].entity.id() == e.id(), "Entity should appear in cache")
+
+	# --- 4. Test: Dynamic component removal (Remove -> Cache Update) ---
+	# Remove Pos, e no longer satisfies condition
+	e.remove_component("Pos")
+
+	_assert(cache_view_after_add.is_empty(), "Cache should clear after removing component")
+
+	# --- 5. Test: Entity destruction (Destroy -> Cache Update) ---
+	# Add it back first so it enters cache again
+	e.add_component("Pos", CompPos.new())
+	_assert(cache_view_after_add.size() == 1, "Entity re-added")
+
+	# Destroy entity
+	e.destroy()
+
+	_assert(cache_view_after_add.is_empty(), "Cache should clear after destroying entity")
+
 func _test_events() -> void:
 	var test_data := {
 		"received_count": 0,
@@ -274,7 +314,7 @@ func _test_commands_defer() -> void:
 	var check_state = { "has_entity_inside_defer": true }
 	
 	# Queue: Destroy Entity -> Then Defer Logic
-	# 逻辑预期：flush 时会先执行 OP_DESTROY，然后执行 OP_DEFER
+	# Logic expectation: flush will execute OP_DESTROY first, then OP_DEFER
 	cmds_mixed.entity(eid).destroy()
 	cmds_mixed.defer(func():
 		# Check if the entity still exists at this specific moment in the stream
@@ -291,23 +331,23 @@ func _test_commands_defer() -> void:
 	_assert(check_state.has_entity_inside_defer == false, "Inside defer: Should perceive the entity as already destroyed (Sequential consistency)")
 
 # --- Scheduler Mock Systems ---
-# 模拟一个产生数据的系统
+# Simulate a system that produces data
 class SysProducer extends ECSParallel:
 	func _init(): super._init("Producer")
 	func _list_components() -> Dictionary:
 		return {"Val": ECSParallel.READ_WRITE}
 	func _view_components(view: Dictionary, cmds: ECSSchedulerCommands) -> void:
-		# 给所有有 Val 组件的实体加 1
+		# Add 1 to all entities with Val component
 		var c = view["Val"] as ECSDataComponent
 		c.data += 1
 
-# 模拟一个消费数据的系统，必须在 Producer 后运行
+# Simulate a system that consumes data, must run after Producer
 class SysConsumer extends ECSParallel:
 	var total_sum = 0
 	func _init(): super._init("Consumer")
 	func _list_components() -> Dictionary:
 		return {"Val": ECSParallel.READ_ONLY}
-	func _parallel() -> bool: return false # 为了累加测试方便，设为单线程
+	func _parallel() -> bool: return false # Set to single-threaded for easier accumulation testing
 	func thread_function(delta: float) -> void:
 		total_sum = 0 # Reset per frame
 		super.thread_function(delta)
@@ -328,7 +368,7 @@ func _test_scheduler_dependency() -> void:
 	var sys_prod = SysProducer.new()
 	var sys_cons = SysConsumer.new()
 	
-	# 设置依赖：Consumer 必须在 Producer 之后
+	# Set dependency: Consumer must run after Producer
 	sys_cons.after(["Producer"])
 	
 	scheduler.add_systems([sys_prod, sys_cons])

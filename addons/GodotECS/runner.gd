@@ -22,10 +22,11 @@ signal on_update(delta: float)
 func add_system(name: StringName, system: ECSSystem) -> ECSRunner:
 	remove_system(name)
 	_system_pool[name] = system
+	set_system_update(name, true)
 	system._set_name(name)
 	system._set_world(_world)
+	system._set_runner(self)
 	system.on_enter(_world)
-	set_system_update(name, true)
 	return self
 
 ## Adds multiple systems at once.

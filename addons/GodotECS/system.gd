@@ -8,6 +8,7 @@ class_name ECSSystem
 
 var _name: StringName
 var _world: ECSWorld
+var _runner: ECSRunner
 
 # ==============================================================================
 # Public API - Identity & World
@@ -54,6 +55,9 @@ func multi_view_cache(names: Array) -> ECSWorld.QueryCache:
 func query() -> ECSWorld.Querier:
 	return _world.query()
 
+func spawn() -> ECSEntitySpawner:
+	return ECSEntitySpawner.new(_world)
+
 # ==============================================================================
 # Public API - Lifecycle Callbacks
 # ==============================================================================
@@ -97,12 +101,17 @@ func send(e: GameEvent) -> void:
 ## Enables or disables this system's update callback.
 ## @param enable: True to enable updates, false to disable.
 func set_update(enable: bool) -> void:
-	world().set_system_update(name(), enable)
+	if _runner == null:
+		world().set_system_update(name(), enable)
+		return
+	_runner.set_system_update(_name, enable)
 
 ## Checks if this system is currently connected to the update cycle.
 ## @return: True if the system's update callback is connected.
 func is_updating() -> bool:
-	return world().is_system_updating(_name)
+	if _runner == null:
+		return world().is_system_updating(_name)
+	return _runner.is_system_updating(_name)
 
 # ==============================================================================
 # Override Methods
@@ -146,6 +155,9 @@ func _set_name(n: StringName) -> void:
 ## @param w: The ECSWorld instance to attach.
 func _set_world(w: ECSWorld) -> void:
 	_world = w
+
+func _set_runner(runner: ECSRunner) -> void:
+	_runner = runner
 
 ## Returns a string representation of this system.
 ## @return: String in the format "system:<name>".

@@ -31,6 +31,32 @@ func remove_component(key: Variant) -> bool:
 
 ## Removes all components from this entity and clears tracking.
 ## @return: True if all components were removed.
+## @deprecated: Use remove_all() instead for shorter syntax.
 func remove_all_components() -> bool:
 	_components.clear()
 	return super.remove_all_components()
+
+## Removes a component from this entity and stops tracking it.
+## @param key: The StringName identifier, Script, or Component class for the component type to remove.
+## @return: True if the component was successfully removed.
+func remove(key: Variant) -> bool:
+	var name = world().resolve_name(key)
+	if name:
+		_components.erase(name)
+	return super.remove(key)
+
+## Removes all components from this entity and clears tracking.
+## @return: True if all components were removed.
+func remove_all() -> bool:
+	_components.clear()
+	return super.remove_all()
+
+## Adds a component instance, automatically deducing its name, and tracks it locally.
+## @param component: The ECSComponent instance to add.
+## @return: This ECSEntity for chaining.
+## Usage: entity.add(CompHealth.new())
+func add(component: ECSComponent) -> ECSEntity:
+	var name = world().resolve_name(component)
+	if name:
+		_components[name] = component
+	return super.add(component)

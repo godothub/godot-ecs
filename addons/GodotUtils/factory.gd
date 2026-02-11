@@ -63,7 +63,7 @@ func _object_to_uid(object: Object) -> int:
 ## @param uid: The type UID.
 ## @return: A new instance.
 func _uid_to_object(uid: int) -> Object:
-	var creater := _inner_creater[uid]
+	var creater := _inner_creater[uid] if _inner_creater.has(uid) else null
 	if creater == null:
 		var path := ResourceUID.id_to_text(uid)
 		assert(ResourceLoader.exists(path), "uid<%s> is not exists!" % path)

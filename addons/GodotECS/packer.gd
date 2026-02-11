@@ -155,12 +155,18 @@ func _unpack_components(e: ECSEntity, dict: Dictionary, uid_list: Array[int]) ->
 	for name: StringName in dict:
 		var c_dict: Dictionary = dict[name]
 		var index: int = c_dict["_class_index"]
-		assert(index < uid_list.size(), "unpack component fail: class index <%d> is invalid!" % index)
+		
+		if index >= uid_list.size():
+			push_error("unpack component fail: class index <%d> is invalid!" % index)
+			continue
 		
 		var uid := uid_list[index]
 		var c: ECSComponent = _factory.uid_to_object(uid)
-		assert(c != null, "unpack component fail: script <%s> is not exist!" % ResourceUID.id_to_text(uid_list[index]))
-		e.add_component(name, c)
+		if c:
+			e.add_component(name, c)
+		else:
+			e.add_component(name)
+			push_error("unpack component fail: script <%s> is not exist!" % ResourceUID.id_to_text(uid_list[index]))
 
 ## Internal: Unpacks component data archives.
 ## @param e: The entity whose components to populate.

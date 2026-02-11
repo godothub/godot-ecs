@@ -109,12 +109,21 @@ func _flush_stream(world: ECSWorld) -> void:
 				last_spawned_id = e.id()
 				
 			OP_ADD_TO_NEW:
-				var name: StringName = _stream[idx]
+				var key = _stream[idx]
 				var comp: ECSComponent = _stream[idx+1]
 				idx += 2
-				if last_spawned_id != 0:
-					world.add_component(last_spawned_id, name, comp)
+				
+				var name: StringName
+				if key == null:
+					name = world.resolve_name(comp)
+				elif key is StringName:
+					name = key
 				else:
+					name = world.resolve_name(key)
+				
+				if last_spawned_id != 0 and not name.is_empty():
+					world.add_component(last_spawned_id, name, comp)
+				elif last_spawned_id == 0:
 					push_error("[ECS] OP_ADD_TO_NEW called without preceding OP_SPAWN")
 					
 			OP_DESTROY:
@@ -124,10 +133,20 @@ func _flush_stream(world: ECSWorld) -> void:
 				
 			OP_ADD_COMP:
 				var eid: int = _stream[idx]
-				var name: StringName = _stream[idx+1]
+				var key = _stream[idx+1]
 				var comp: ECSComponent = _stream[idx+2]
 				idx += 3
-				world.add_component(eid, name, comp)
+				
+				var name: StringName
+				if key == null:
+					name = world.resolve_name(comp)
+				elif key is StringName:
+					name = key
+				else:
+					name = world.resolve_name(key)
+				
+				if not name.is_empty():
+					world.add_component(eid, name, comp)
 				
 			OP_RM_COMP:
 				var eid: int = _stream[idx]
@@ -181,11 +200,20 @@ class EntityCommands extends RefCounted:
 		_cmd = cmd
 		_id = id
 	
-	func add_component(name: StringName, component: ECSComponent) -> EntityCommands:
+	func add_component(p1: Variant, p2: ECSComponent = null) -> EntityCommands:
+		var name_var: Variant = p1
+		var comp: ECSComponent = p2
+		
+		if p1 is ECSComponent:
+			comp = p1
+			name_var = null
+		elif p2 == null:
+			comp = ECSComponent.new()
+			
 		_cmd._stream.append(Commands.OP_ADD_COMP)
 		_cmd._stream.append(_id)
-		_cmd._stream.append(name)
-		_cmd._stream.append(component)
+		_cmd._stream.append(name_var)
+		_cmd._stream.append(comp)
 		return self
 		
 	func remove_component(name: StringName) -> EntityCommands:
@@ -210,11 +238,18 @@ class Spawner extends RefCounted:
 	func _init(cmd: Commands) -> void:
 		_cmd = cmd
 	
-	func add_component(name: StringName, component: ECSComponent = null) -> Spawner:
-		if component == null:
-			component = ECSComponent.new()
+	func add_component(p1: Variant, p2: ECSComponent = null) -> Spawner:
+		var name_var: Variant = p1
+		var comp: ECSComponent = p2
+		
+		if p1 is ECSComponent:
+			comp = p1
+			name_var = null
+		elif p2 == null:
+			comp = ECSComponent.new()
+			
 		_cmd._stream.append(Commands.OP_ADD_TO_NEW)
-		_cmd._stream.append(name)
-		_cmd._stream.append(component)
+		_cmd._stream.append(name_var)
+		_cmd._stream.append(comp)
 		return self
-	
+

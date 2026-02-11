@@ -47,6 +47,8 @@ var _query_caches: Dictionary
 var _scheduler_pool: Dictionary[StringName, ECSScheduler]
 var _runner_pool: Dictionary[StringName, ECSRunner]
 
+var _script_cache: Dictionary
+
 ## Creates a new ECSWorld instance.
 ## @param name: Optional name for this world instance, defaults to "ECSWorld".
 func _init(name := "ECSWorld") -> void:
@@ -211,28 +213,93 @@ func has_component(entity_id: int, name: StringName) -> bool:
 	return entity_dict.has(name)
 
 # ==============================================================================
+# Public API - Type Resolution
+# ==============================================================================
+
+## Resolves a component key (StringName, Script, or Component Instance) into a valid Component Name.
+## Automatically registers the script if encountered for the first time.
+## @param key: The component key to resolve.
+## @return: The resolved StringName component identifier.
+func resolve_name(key: Variant) -> StringName:
+	if key is StringName or key is String:
+		return key
+	
+	var script: Script = null
+	if key is ECSComponent:
+		script = key.get_script()
+	elif key is Script:
+		script = key
+	
+	if not script:
+		push_error("[ECS] Cannot resolve name for invalid key: %s" % key)
+		return &""
+	
+	if _script_cache.has(script):
+		return _script_cache[script]
+	
+	var type_name: StringName = &""
+	
+	var global_name = script.get_global_name()
+	if not global_name.is_empty():
+		type_name = global_name
+	else:
+		var path = script.resource_path
+		if not path.is_empty():
+			type_name = path.get_file().get_basename()
+		else:
+			# make a type name
+			var uid := ResourceUID.create_id_for_path("uid://%s" % script)
+			type_name = ResourceUID.id_to_text(uid)
+	
+	if not type_name.is_empty():
+		_script_cache[script] = type_name
+		if not _type_component_dict.has(type_name):
+			_type_component_dict[type_name] = {}
+		if debug_print:
+			print("ECS: Auto-registered component type '%s' from script." % type_name)
+		return type_name
+	
+	push_error("[ECS] Failed to resolve component name for script: %s" % script.resource_path)
+	return &""
+
+# ==============================================================================
 # Public API - Query System
 # ==============================================================================
 
 ## Retrieves all entities that have a specific component type (single-component view).
-## @param name: The StringName identifier for the component type to query.
+## @param key: The StringName identifier, Script, or Component class for the component type to query.
 ## @return: Array of ECSComponent instances for all entities with the component.
-func view(name: StringName) -> Array:
-	if not _type_component_dict.has(name):
+func view(key: Variant) -> Array:
+	var name = resolve_name(key)
+	if name.is_empty() or not _type_component_dict.has(name):
 		return []
 	return _type_component_dict[name].values()
 
 ## Retrieves entities that have all specified component types (cached AND query).
-## @param names: Array of StringName component types that must all be present.
+## @param keys: Array of StringName, Script, or Component class identifiers that must all be present.
 ## @return: Array of Dictionary views, each containing entity and component data.
-func multi_view(names: Array) -> Array:
+func multi_view(keys: Array) -> Array:
+	var names: Array = []
+	for k in keys:
+		var n = resolve_name(k)
+		if not n.is_empty():
+			names.append(n)
+	if names.is_empty():
+		return []
+	
 	var cache := multi_view_cache(names)
 	return cache.results.duplicate() if cache else []
 
 ## Gets or creates a cached query for multi-component queries.
-## @param names: Array of StringName component types to query.
-## @return: QueryCache instance for the component combination, or null if names is empty.
-func multi_view_cache(names: Array) -> QueryCache:
+## @param keys: Array of StringName, Script, or Component class identifiers to query.
+## @return: QueryCache instance for the component combination, or null if keys is empty.
+func multi_view_cache(keys: Array) -> QueryCache:
+	var names: Array = []
+	for k in keys:
+		var n = resolve_name(k)
+		if not n.is_empty():
+			names.append(n)
+	
 	if names.is_empty():
 		return null
 	

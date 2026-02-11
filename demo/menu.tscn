@@ -1,8 +1,8 @@
-[gd_scene load_steps=2 format=3 uid="uid://5dcdrxf40vxp"]
+[gd_scene format=3 uid="uid://5dcdrxf40vxp"]
 
 [ext_resource type="Script" uid="uid://cw2u73p8ceay3" path="res://demo/menu.gd" id="1_wq4q4"]
 
-[node name="Menu" type="Control"]
+[node name="Menu" type="Control" unique_id=1139790754]
 layout_mode = 3
 anchors_preset = 15
 anchor_right = 1.0
@@ -11,7 +11,7 @@ grow_horizontal = 2
 grow_vertical = 2
 script = ExtResource("1_wq4q4")
 
-[node name="CenterContainer" type="CenterContainer" parent="."]
+[node name="CenterContainer" type="CenterContainer" parent="." unique_id=1408585908]
 layout_mode = 1
 anchors_preset = 15
 anchor_right = 1.0
@@ -20,23 +20,23 @@ offset_bottom = -220.0
 grow_horizontal = 2
 grow_vertical = 2
 
-[node name="VBoxContainer" type="VBoxContainer" parent="CenterContainer"]
+[node name="VBoxContainer" type="VBoxContainer" parent="CenterContainer" unique_id=1195070238]
 layout_mode = 2
 theme_override_constants/separation = 40
 
-[node name="SyncDemo" type="Button" parent="CenterContainer/VBoxContainer"]
+[node name="SyncDemo" type="Button" parent="CenterContainer/VBoxContainer" unique_id=2084516908]
 custom_minimum_size = Vector2(220, 64)
 layout_mode = 2
 theme_override_font_sizes/font_size = 32
 text = "Sync Demo"
 
-[node name="ASyncDemo" type="Button" parent="CenterContainer/VBoxContainer"]
+[node name="ASyncDemo" type="Button" parent="CenterContainer/VBoxContainer" unique_id=1675644164]
 custom_minimum_size = Vector2(220, 64)
 layout_mode = 2
 theme_override_font_sizes/font_size = 32
 text = "ASync Demo"
 
-[node name="CenterContainer2" type="CenterContainer" parent="."]
+[node name="CenterContainer2" type="CenterContainer" parent="." unique_id=745420765]
 custom_minimum_size = Vector2(0, 600)
 layout_mode = 1
 anchors_preset = 12
@@ -47,7 +47,7 @@ grow_horizontal = 2
 grow_vertical = 0
 mouse_filter = 2
 
-[node name="RichTextLabel" type="RichTextLabel" parent="CenterContainer2"]
+[node name="RichTextLabel" type="RichTextLabel" parent="CenterContainer2" unique_id=257027341]
 self_modulate = Color(1, 1, 1, 0.6901961)
 custom_minimum_size = Vector2(800, 0)
 layout_mode = 2

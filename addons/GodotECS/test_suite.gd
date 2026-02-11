@@ -29,6 +29,7 @@ func run() -> void:
 	_run_test("ECSRunner Update Control", _test_runner_update_control)
 	_run_test("ECSRunner Lifecycle", _test_runner_lifecycle)
 	_run_test("ECSRunner Edge Cases", _test_runner_edge_cases)
+	_run_test("Type Index & Auto-Register", _test_type_index)
 	
 	print_rich("[b]--------------------------------------------------[/b]")
 	if _fail_count == 0:
@@ -568,3 +569,30 @@ func _test_runner_edge_cases() -> void:
 	_assert(true, "Running with system without _on_update does not crash")
 	
 	_world.destroy_runner("TestRunner")
+
+func _test_type_index() -> void:
+	var e = _world.create_entity()
+	
+	e.add(CompHealth.new(0))
+	_assert(e.has_component(CompHealth), "Entity should have CompHealth type")
+	
+	var hp = e.get_component(CompHealth)
+	_assert(hp != null, "Get component by type should return instance")
+	_assert(hp.data == 0, "Default data value check")
+	
+	var views = _world.view(CompHealth)
+	_assert(views.size() == 1, "View by type should return 1 component")
+	
+	e.add(CompMana.new(25))
+	var multi_views = _world.multi_view([CompHealth, CompMana])
+	_assert(multi_views.size() == 1, "MultiView by types should return 1 result")
+	
+	var query_result = _world.query().with([CompHealth]).without([CompMana]).exec()
+	_assert(query_result.is_empty(), "Query with types should filter correctly")
+	
+	var cmds = ECSSchedulerCommands.new()
+	cmds.entity(e.id()).add_component(CompPos.new())
+	_assert(not e.has_component(CompPos), "Before flush: Component not added")
+	
+	cmds.flush(_world)
+	_assert(e.has_component(CompPos), "After flush: Component added via command buffer")

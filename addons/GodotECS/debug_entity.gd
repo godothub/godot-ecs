@@ -9,19 +9,23 @@ var _components: Dictionary[StringName, ECSComponent]
 var _groups: Dictionary[StringName, bool]
 
 ## Adds a component to this entity and tracks it locally.
-## @param name: The StringName identifier for the component type.
+## @param key: The StringName identifier, Script, or Component class for the component type.
 ## @param component: The ECSComponent instance to add.
 ## @return: True if the component was successfully added.
-func add_component(name: StringName, component := ECSComponent.new()) -> bool:
-	_components[name] = component
-	return super.add_component(name, component)
+func add_component(key: Variant, component := ECSComponent.new()) -> bool:
+	var name = world().resolve_name(key)
+	if name: 
+		_components[name] = component
+	return super.add_component(key, component)
 
 ## Removes a component from this entity and stops tracking it.
-## @param name: The StringName identifier for the component type to remove.
+## @param key: The StringName identifier, Script, or Component class for the component type to remove.
 ## @return: True if the component was successfully removed.
-func remove_component(name: StringName) -> bool:
-	_components.erase(name)
-	return super.remove_component(name)
+func remove_component(key: Variant) -> bool:
+	var name = world().resolve_name(key)
+	if name:
+		_components.erase(name)
+	return super.remove_component(key)
 
 ## Removes all components from this entity and clears tracking.
 ## @return: True if all components were removed.

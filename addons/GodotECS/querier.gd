@@ -4,19 +4,28 @@ const Querier = preload("querier.gd")
 
 # ==============================================================================
 # public
-func with(names: Array) -> Querier:
+func with(keys: Array) -> Querier:
 	_with_names.clear()
-	_with_names.append_array(names)
+	for k in keys:
+		var n = _world.resolve_name(k)
+		if not n.is_empty():
+			_with_names.append(n)
 	return self
 	
-func without(names: Array) -> Querier:
+func without(keys: Array) -> Querier:
 	_without_names.clear()
-	_without_names.append_array(names)
+	for k in keys:
+		var n = _world.resolve_name(k)
+		if not n.is_empty():
+			_without_names.append(n)
 	return self
 	
-func any_of(names: Array) -> Querier:
+func any_of(keys: Array) -> Querier:
 	_any_names.clear()
-	_any_names.append_array(names)
+	for k in keys:
+		var n = _world.resolve_name(k)
+		if not n.is_empty():
+			_any_names.append(n)
 	return self
 	
 func filter(predicate: Callable) -> Querier:

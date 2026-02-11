@@ -70,39 +70,87 @@ func send(e: GameEvent) -> void:
 # Public API - Component Management
 # ==============================================================================
 
+## Adds a component instance, automatically deducing its name.
+## @param component: The ECSComponent instance to add.
+## @return: This ECSEntity for chaining.
+## Usage: entity.add(CompHealth.new())
+func add(component: ECSComponent) -> ECSEntity:
+	if component == null: 
+		return self
+	var name = world().resolve_name(component)
+	if not name.is_empty():
+		add_component(name, component)
+	return self
+
 ## Adds a component to this entity.
-## @param name: The StringName identifier for the component type.
+## @param key: The StringName identifier, Script, or Component class for the component type.
 ## @param component: The ECSComponent instance to add. Defaults to empty ECSComponent.
 ## @return: True if the component was successfully added.
-func add_component(name: StringName, component := ECSComponent.new()) -> bool:
+func add_component(key: Variant, component := ECSComponent.new()) -> bool:
+	var name = world().resolve_name(key)
+	if name.is_empty(): 
+		return false
 	return world().add_component(_id, name, component)
 
-## Removes a component from this entity.
-## @param name: The StringName identifier for the component type to remove.
-## @return: True if the component was successfully removed.
-func remove_component(name: StringName) -> bool:
+func remove(key: Variant) -> bool:
+	var name = world().resolve_name(key)
+	if name.is_empty(): 
+		return false
 	return world().remove_component(_id, name)
+
+## Removes a component from this entity.
+## @param key: The StringName identifier, Script, or Component class for the component type to remove.
+## @return: True if the component was successfully removed.
+func remove_component(key: Variant) -> bool:
+	var name = world().resolve_name(key)
+	if name.is_empty(): 
+		return false
+	return world().remove_component(_id, name)
+
+func remove_all() -> bool:
+	return world().remove_all_components(_id)
 
 ## Removes all components from this entity.
 ## @return: True if all components were removed.
 func remove_all_components() -> bool:
 	return world().remove_all_components(_id)
 
-## Gets a specific component from this entity.
-## @param name: The StringName identifier for the component type.
-## @return: The ECSComponent instance, or null if not found.
-func get_component(name: StringName) -> ECSComponent:
+func getc(key: Variant) -> ECSComponent:
+	var name = world().resolve_name(key)
+	if name.is_empty(): 
+		return null
 	return world().get_component(_id, name)
+
+## Gets a specific component from this entity.
+## @param key: The StringName identifier, Script, or Component class for the component type.
+## @return: The ECSComponent instance, or null if not found.
+func get_component(key: Variant) -> ECSComponent:
+	var name = world().resolve_name(key)
+	if name.is_empty(): 
+		return null
+	return world().get_component(_id, name)
+
+func getc_all() -> Array:
+	return world().get_components(_id)
 
 ## Gets all components attached to this entity.
 ## @return: Array of ECSComponent instances.
 func get_components() -> Array:
 	return world().get_components(_id)
 
+func has(key: Variant) -> bool:
+	var name = world().resolve_name(key)
+	if name.is_empty():
+		return false
+	return world().has_component(_id, name)
+
 ## Checks if this entity has a specific component.
-## @param name: The StringName identifier for the component type.
+## @param key: The StringName identifier, Script, or Component class for the component type.
 ## @return: True if the entity has the component.
-func has_component(name: StringName) -> bool:
+func has_component(key: Variant) -> bool:
+	var name = world().resolve_name(key)
+	if name.is_empty():
+		return false
 	return world().has_component(_id, name)
 
 # ==============================================================================

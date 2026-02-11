@@ -18,6 +18,7 @@ func run() -> void:
 	
 	# Execute each test module
 	_run_test("Entity & Component CRUD", _test_entity_component_crud)
+	_run_test("Entity Shorthand Methods", _test_entity_shorthand_methods)
 	_run_test("Query System (With/Without/AnyOf)", _test_query_system)
 	_run_test("Query Cache Reactive", _test_query_cache_reactive)
 	_run_test("Event System", _test_events)
@@ -141,6 +142,47 @@ func _test_entity_component_crud() -> void:
 	e.destroy()
 	_assert(not _world.has_entity(eid), "Entity should be removed from world")
 	_assert(not e.valid(), "Entity wrapper should report invalid")
+
+func _test_entity_shorthand_methods() -> void:
+	var e = _world.create_entity()
+	
+	# Test shorthand has()
+	e.add_component("Health", CompHealth.new(100))
+	_assert(e.has("Health"), "Shorthand has() should return true")
+	_assert(e.has("Health") == e.has_component("Health"), "has() should match has_component()")
+	_assert(not e.has("Mana"), "Shorthand has() should return false for missing component")
+	
+	# Test shorthand getc()
+	var hp = e.getc("Health")
+	_assert(hp != null, "Shorthand getc() should return component")
+	_assert(hp == e.get_component("Health"), "getc() should match get_component()")
+	_assert(e.getc("Mana") == null, "Shorthand getc() should return null for missing component")
+	_assert(hp.data == 100, "Shorthand getc() should return correct component data")
+	
+	# Test shorthand getc_all()
+	e.add_component("Pos", CompPos.new())
+	var all_comps = e.getc_all()
+	_assert(all_comps.size() == 2, "Shorthand getc_all() should return 2 components")
+	_assert(all_comps == e.get_components(), "getc_all() should match get_components()")
+	
+	# Test shorthand remove()
+	var removed = e.remove("Health")
+	_assert(removed, "Shorthand remove() should return true")
+	_assert(not e.has("Health"), "Component should be removed after remove()")
+	_assert(removed == e.remove_component("Pos"), "remove() should match remove_component()")
+	
+	var removed_twice = e.remove("Health")
+	_assert(not removed_twice, "Shorthand remove() should return false for missing component")
+	
+	# Test shorthand remove_all()
+	e.add_component("Health", CompHealth.new(50))
+	e.add_component("Pos", CompPos.new())
+	var cleared = e.remove_all()
+	_assert(cleared, "Shorthand remove_all() should return true")
+	_assert(e.getc_all().is_empty(), "All components should be removed")
+	_assert(cleared == e.remove_all_components(), "remove_all() should match remove_all_components()")
+	
+	e.destroy()
 
 func _test_query_system() -> void:
 	# Setup Data:

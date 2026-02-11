@@ -12,6 +12,7 @@ var _groups: Dictionary[StringName, bool]
 ## @param key: The StringName identifier, Script, or Component class for the component type.
 ## @param component: The ECSComponent instance to add.
 ## @return: True if the component was successfully added.
+## @deprecated: Use add() instead for shorter syntax.
 func add_component(key: Variant, component := ECSComponent.new()) -> bool:
 	var name = world().resolve_name(key)
 	if name: 
@@ -21,6 +22,7 @@ func add_component(key: Variant, component := ECSComponent.new()) -> bool:
 ## Removes a component from this entity and stops tracking it.
 ## @param key: The StringName identifier, Script, or Component class for the component type to remove.
 ## @return: True if the component was successfully removed.
+## @deprecated: Use remove() instead for shorter syntax.
 func remove_component(key: Variant) -> bool:
 	var name = world().resolve_name(key)
 	if name:
